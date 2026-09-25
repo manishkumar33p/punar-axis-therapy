@@ -1,0 +1,399 @@
+* {
+  box-sizing: border-box;
+}
+
+.clinic-page {
+  min-height: 100vh;
+  padding: 34px;
+  background:
+    radial-gradient(
+      circle at top right,
+      rgba(75, 151, 132, 0.12),
+      transparent 32%
+    ),
+    linear-gradient(
+      135deg,
+      #f5faf8,
+      #eef7f4
+    );
+  font-family:
+    Inter,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    sans-serif;
+  color: #173c35;
+}
+
+/* HEADER */
+
+.clinic-header {
+  max-width: 1250px;
+  margin: 0 auto 28px;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 25px;
+}
+
+.brand-title {
+  color: #267263;
+  font-weight: 800;
+  font-size: 15px;
+  letter-spacing: 0.5px;
+  margin-bottom: 7px;
+}
+
+.clinic-header h1 {
+  margin: 0;
+  font-size: 32px;
+  color: #183f38;
+  font-weight: 800;
+}
+
+.clinic-header p {
+  margin: 8px 0 0;
+  color: #72827e;
+  font-size: 14px;
+}
+
+.clinic-date {
+  background: rgba(255, 255, 255, 0.75);
+  border: 1px solid #dceae5;
+  border-radius: 14px;
+  padding: 12px 17px;
+  color: #49645e;
+  font-size: 13px;
+  box-shadow: 0 8px 25px rgba(28, 83, 72, 0.06);
+}
+
+/* GRID */
+
+.clinic-grid {
+  max-width: 1250px;
+  margin: auto;
+}
+
+/* CARD */
+
+.clinic-card {
+  background: rgba(255, 255, 255, 0.94);
+  border: 1px solid #deebe7;
+  border-radius: 24px;
+  padding: 30px;
+  box-shadow:
+    0 20px 55px rgba(36, 89, 77, 0.08),
+    0 4px 12px rgba(36, 89, 77, 0.04);
+}
+
+.card-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 26px;
+  gap: 20px;
+}
+
+.card-heading h2 {
+  margin: 0;
+  font-size: 22px;
+  color: #173f37;
+}
+
+.card-heading p {
+  margin: 7px 0 0;
+  color: #82918d;
+  font-size: 13px;
+}
+
+.form-badge {
+  background: #e8f5f0;
+  color: #267263;
+  border-radius: 30px;
+  padding: 8px 13px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+/* FORM */
+
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 20px;
+}
+
+.full-field {
+  margin-top: 20px;
+}
+
+.clinic-card label {
+  display: block;
+  margin-bottom: 8px;
+  font-size: 13px;
+  font-weight: 700;
+  color: #35554e;
+}
+
+.clinic-card input,
+.clinic-card select,
+.clinic-card textarea {
+  width: 100%;
+  border: 1px solid #d8e6e2;
+  background: #fbfdfc;
+  border-radius: 12px;
+  padding: 13px 14px;
+  outline: none;
+  color: #29443e;
+  font-size: 14px;
+  transition: 0.2s ease;
+}
+
+.clinic-card input:focus,
+.clinic-card select:focus,
+.clinic-card textarea:focus {
+  border-color: #4b9b87;
+  background: #fff;
+  box-shadow:
+    0 0 0 4px rgba(75, 155, 135, 0.09);
+}
+
+.clinic-card textarea {
+  min-height: 110px;
+  resize: vertical;
+}
+
+/* SLOTS */
+
+.slot-section {
+  margin-top: 22px;
+}
+
+.slot-grid {
+  display: grid;
+  grid-template-columns: repeat(
+    auto-fit,
+    minmax(130px, 1fr)
+  );
+  gap: 10px;
+}
+
+.slot {
+  border: 1px solid #d8e7e2;
+  background: #f7fbf9;
+  color: #32685d;
+  border-radius: 12px;
+  padding: 13px 10px;
+  cursor: pointer;
+  font-weight: 700;
+  transition: 0.2s ease;
+}
+
+.slot:hover:not(:disabled) {
+  transform: translateY(-2px);
+  border-color: #56a18e;
+  background: #edf8f4;
+}
+
+.slot.selected {
+  background: #267263;
+  color: #fff;
+  border-color: #267263;
+  box-shadow:
+    0 8px 20px rgba(38, 114, 99, 0.2);
+}
+
+.slot.booked {
+  opacity: 0.45;
+  cursor: not-allowed;
+  text-decoration: line-through;
+}
+
+.slot small {
+  display: block;
+  margin-top: 4px;
+  font-size: 9px;
+}
+
+/* BUTTON */
+
+.primary-btn {
+  width: 100%;
+  border: none;
+  margin-top: 25px;
+  padding: 15px;
+  border-radius: 13px;
+  background:
+    linear-gradient(
+      135deg,
+      #267263,
+      #3f8d7b
+    );
+  color: white;
+  font-size: 15px;
+  font-weight: 800;
+  cursor: pointer;
+  box-shadow:
+    0 12px 25px rgba(38, 114, 99, 0.22);
+  transition: 0.2s ease;
+}
+
+.primary-btn:hover {
+  transform: translateY(-2px);
+  box-shadow:
+    0 16px 30px rgba(38, 114, 99, 0.27);
+}
+
+/* SUCCESS MODAL */
+
+.pdf-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(18, 45, 40, 0.48);
+  backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  z-index: 9999;
+}
+
+.pdf-success-modal {
+  width: 100%;
+  max-width: 500px;
+  background: white;
+  border-radius: 25px;
+  padding: 34px;
+  text-align: center;
+  box-shadow:
+    0 30px 80px rgba(16, 55, 48, 0.25);
+  animation: popup 0.25s ease;
+}
+
+@keyframes popup {
+  from {
+    opacity: 0;
+    transform: translateY(15px) scale(0.98);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.success-icon {
+  width: 62px;
+  height: 62px;
+  margin: auto;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: #e6f7f0;
+  color: #2e8975;
+  font-size: 30px;
+  font-weight: 800;
+}
+
+.pdf-success-modal h2 {
+  margin: 18px 0 7px;
+  color: #173f37;
+}
+
+.pdf-success-modal > p {
+  color: #7b8985;
+  font-size: 14px;
+}
+
+.appointment-summary {
+  margin-top: 23px;
+  padding: 18px;
+  border-radius: 15px;
+  background: #f5faf8;
+  text-align: left;
+}
+
+.appointment-summary div {
+  display: flex;
+  justify-content: space-between;
+  gap: 15px;
+  padding: 9px 0;
+  border-bottom: 1px solid #e2ece8;
+}
+
+.appointment-summary div:last-child {
+  border-bottom: none;
+}
+
+.appointment-summary span {
+  color: #82908c;
+  font-size: 12px;
+}
+
+.appointment-summary strong {
+  color: #284c44;
+  font-size: 12px;
+  text-align: right;
+}
+
+.pdf-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-top: 22px;
+}
+
+.pdf-btn,
+.print-btn {
+  border: none;
+  padding: 13px;
+  border-radius: 12px;
+  color: white;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.pdf-btn {
+  background: #267263;
+}
+
+.print-btn {
+  background: #355d75;
+}
+
+.close-success-btn {
+  margin-top: 13px;
+  width: 100%;
+  border: 1px solid #d9e5e1;
+  background: white;
+  color: #52706a;
+  padding: 12px;
+  border-radius: 12px;
+  cursor: pointer;
+  font-weight: 700;
+}
+
+/* RESPONSIVE */
+
+@media (max-width: 700px) {
+  .clinic-page {
+    padding: 18px;
+  }
+
+  .clinic-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .clinic-card {
+    padding: 20px;
+  }
+
+  .pdf-actions {
+    grid-template-columns: 1fr;
+  }
+}

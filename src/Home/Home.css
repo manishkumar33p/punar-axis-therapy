@@ -2277,3 +2277,168 @@
     padding: 11px 10px;
   }
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+/* ================================
+   MOBILE HAMBURGER MENU
+================================ */
+
+.mobile-menu-btn {
+  display: none;
+  border: none;
+  background: transparent;
+  font-size: 30px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 6px 8px;
+  color: #063f34;
+  z-index: 10001;
+}
+
+/* Desktop */
+.home-nav-menu {
+  display: flex;
+}
+
+/* ================================
+   TABLET / MOBILE
+================================ */
+
+@media (max-width: 1000px) {
+  .home-nav-container {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+
+  .mobile-menu-btn {
+    display: block;
+    margin-left: auto;
+    flex-shrink: 0;
+  }
+
+  /* Menu CLOSED by default */
+  .home-nav-menu {
+    display: none !important;
+  }
+
+  /* Menu OPEN */
+  .home-nav-menu.mobile-menu-open {
+    display: flex !important;
+    position: absolute;
+    top: 100%;
+    left: 15px;
+    right: 15px;
+    width: auto;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0;
+    background: #ffffff;
+    border-radius: 0 0 14px 14px;
+    box-shadow: 0 12px 30px rgba(0, 0, 0, 0.12);
+    padding: 10px 0;
+    z-index: 10000;
+  }
+
+  .home-nav-menu.mobile-menu-open > button,
+  .home-nav-menu.mobile-menu-open > .nav-dropdown {
+    width: 100%;
+  }
+
+  .home-nav-menu.mobile-menu-open > button {
+    justify-content: flex-start;
+    text-align: left;
+    padding: 14px 20px;
+  }
+
+  .nav-dropdown-trigger {
+    width: 100%;
+    justify-content: space-between !important;
+  }
+
+  .nav-dropdown-menu {
+    position: relative;
+    top: auto;
+    left: auto;
+    right: auto;
+    width: 100%;
+    max-width: none;
+    box-shadow: none;
+    border-radius: 0;
+    margin: 0;
+  }
+
+  .nav-dropdown-menu a {
+    width: 100%;
+    box-sizing: border-box;
+  }
+
+  .home-navbar {
+    position: relative;
+    z-index: 9999;
+  }
+}
+
+/* ================================
+   SMALL MOBILE
+================================ */
+
+@media (max-width: 600px) {
+  .home-nav-container {
+    padding-left: 12px;
+    padding-right: 12px;
+  }
+
+  .mobile-menu-btn {
+    font-size: 28px;
+  }
+
+  .home-nav-menu.mobile-menu-open {
+    left: 10px;
+    right: 10px;
+  }
+
+  .nav-book-btn {
+    display: none;
+  }
+}
+
+/* ================================
+   VERY SMALL MOBILE
+================================ */
+
+@media (max-width: 400px) {
+  .mobile-menu-btn {
+    font-size: 26px;
+  }
+
+  .home-nav-menu.mobile-menu-open > button {
+    padding: 12px 16px;
+  }
+}

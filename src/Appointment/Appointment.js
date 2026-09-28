@@ -1,35 +1,45 @@
 
+
 // import React, { useEffect, useMemo, useState } from "react";
+// import jsPDF from "jspdf";
 // import "./Appointment.css";
 
 // function Appointment() {
 //   const doctors = [
 //     {
 //       id: "DOC001",
-//       name: "Dr. Rahul Sharma",
+//       name: "Dr. Rahul Vikash",
 //       specialty: "Physiotherapist",
-//       slots: ["09:00 AM", "10:00 AM", "11:00 AM", "04:00 PM", "05:00 PM"],
+//       slots: [
+//         "09:00 AM",
+//         "10:00 AM",
+//         "11:00 AM",
+//         "04:00 PM",
+//         "05:00 PM",
+//       ],
 //     },
 //     {
 //       id: "DOC002",
 //       name: "Dr. Neha Verma",
 //       specialty: "Rehabilitation Therapist",
-//       slots: ["10:00 AM", "11:00 AM", "12:00 PM", "03:00 PM", "04:00 PM"],
+//       slots: [
+//         "10:00 AM",
+//         "11:00 AM",
+//         "12:00 PM",
+//         "03:00 PM",
+//         "04:00 PM",
+//       ],
 //     },
 //   ];
 
-//   const inventory = [
-//     { id: 1, name: "Therapy Band", stock: 25, unit: "Pieces" },
-//     { id: 2, name: "Hot Pack", stock: 12, unit: "Pieces" },
-//     { id: 3, name: "Cold Pack", stock: 8, unit: "Pieces" },
-//     { id: 4, name: "Therapy Gel", stock: 18, unit: "Tubes" },
-//   ];
-
 //   const [appointments, setAppointments] = useState([]);
+
 //   const [selectedDoctor, setSelectedDoctor] = useState("");
+
 //   const [selectedDate, setSelectedDate] = useState(
 //     new Date().toISOString().split("T")[0]
 //   );
+
 //   const [selectedSlot, setSelectedSlot] = useState("");
 
 //   const [patient, setPatient] = useState({
@@ -42,13 +52,19 @@
 //     notes: "",
 //   });
 
+//   const [bookingSuccess, setBookingSuccess] = useState(null);
+
 //   useEffect(() => {
 //     const savedAppointments = localStorage.getItem(
 //       "clinic_appointments"
 //     );
 
 //     if (savedAppointments) {
-//       setAppointments(JSON.parse(savedAppointments));
+//       try {
+//         setAppointments(JSON.parse(savedAppointments));
+//       } catch (error) {
+//         console.error("Unable to load appointments:", error);
+//       }
 //     }
 //   }, []);
 
@@ -61,10 +77,549 @@
 //       .filter(
 //         (appointment) =>
 //           appointment.doctorId === selectedDoctor &&
-//           appointment.date === selectedDate
+//           appointment.date === selectedDate &&
+//           appointment.status !== "Cancelled"
 //       )
 //       .map((appointment) => appointment.slot);
 //   }, [appointments, selectedDoctor, selectedDate]);
+
+//   /* --------------------------------
+//      PDF GENERATION
+//   -------------------------------- */
+
+//   const generatePDF = (appointment) => {
+//     if (!appointment) return;
+
+//     const pdf = new jsPDF();
+
+//     const pageWidth = pdf.internal.pageSize.getWidth();
+
+//     /* HEADER */
+
+//     pdf.setFillColor(33, 102, 91);
+//     pdf.rect(0, 0, pageWidth, 38, "F");
+
+//     pdf.setTextColor(255, 255, 255);
+//     pdf.setFont("helvetica", "bold");
+//     pdf.setFontSize(21);
+
+//     pdf.text(
+//       "PUNAR AXIS THERAPY",
+//       pageWidth / 2,
+//       15,
+//       { align: "center" }
+//     );
+
+//     pdf.setFont("helvetica", "normal");
+//     pdf.setFontSize(10);
+
+//     pdf.text(
+//       "Ayurveda & Physiotherapy",
+//       pageWidth / 2,
+//       23,
+//       { align: "center" }
+//     );
+
+//     pdf.text(
+//       "Appointment Confirmation Slip",
+//       pageWidth / 2,
+//       31,
+//       { align: "center" }
+//     );
+
+//     /* APPOINTMENT ID */
+
+//     pdf.setTextColor(33, 102, 91);
+//     pdf.setFont("helvetica", "bold");
+//     pdf.setFontSize(12);
+
+//     pdf.text(
+//       `Appointment ID: ${appointment.id}`,
+//       15,
+//       52
+//     );
+
+//     pdf.setDrawColor(220, 220, 220);
+//     pdf.line(15, 58, pageWidth - 15, 58);
+
+//     /* PATIENT DETAILS */
+
+//     pdf.setTextColor(40, 40, 40);
+//     pdf.setFont("helvetica", "bold");
+//     pdf.setFontSize(13);
+
+//     pdf.text("Patient Details", 15, 70);
+
+//     pdf.setFont("helvetica", "normal");
+//     pdf.setFontSize(11);
+
+//     let y = 80;
+
+//     pdf.text(
+//       `Patient Name: ${appointment.name || "-"}`,
+//       15,
+//       y
+//     );
+
+//     pdf.text(
+//       `Mobile: ${appointment.phone || "-"}`,
+//       110,
+//       y
+//     );
+
+//     y += 9;
+
+//     pdf.text(
+//       `Email: ${appointment.email || "-"}`,
+//       15,
+//       y
+//     );
+
+//     pdf.text(
+//       `Age: ${appointment.age || "-"}`,
+//       110,
+//       y
+//     );
+
+//     y += 9;
+
+//     pdf.text(
+//       `Gender: ${appointment.gender || "-"}`,
+//       15,
+//       y
+//     );
+
+//     pdf.text(
+//       `Treatment: ${appointment.treatment || "-"}`,
+//       110,
+//       y
+//     );
+
+//     /* APPOINTMENT DETAILS */
+
+//     y += 20;
+
+//     pdf.setFont("helvetica", "bold");
+//     pdf.setFontSize(13);
+
+//     pdf.text(
+//       "Appointment Details",
+//       15,
+//       y
+//     );
+
+//     y += 10;
+
+//     pdf.setFont("helvetica", "normal");
+//     pdf.setFontSize(11);
+
+//     pdf.text(
+//       `Doctor: ${appointment.doctorName || "-"}`,
+//       15,
+//       y
+//     );
+
+//     y += 9;
+
+//     pdf.text(
+//       `Date: ${appointment.date || "-"}`,
+//       15,
+//       y
+//     );
+
+//     pdf.text(
+//       `Time: ${appointment.slot || "-"}`,
+//       110,
+//       y
+//     );
+
+//     y += 9;
+
+//     pdf.text(
+//       `Status: ${appointment.status || "Confirmed"}`,
+//       15,
+//       y
+//     );
+
+//     /* NOTES */
+
+//     y += 20;
+
+//     pdf.setFont("helvetica", "bold");
+//     pdf.setFontSize(13);
+
+//     pdf.text(
+//       "Notes",
+//       15,
+//       y
+//     );
+
+//     y += 9;
+
+//     pdf.setFont("helvetica", "normal");
+//     pdf.setFontSize(10);
+
+//     const notes =
+//       appointment.notes ||
+//       "No additional notes provided.";
+
+//     const wrappedNotes = pdf.splitTextToSize(
+//       notes,
+//       pageWidth - 30
+//     );
+
+//     pdf.text(
+//       wrappedNotes,
+//       15,
+//       y
+//     );
+
+//     /* CONFIRMATION BOX */
+
+//     y += wrappedNotes.length * 6 + 18;
+
+//     pdf.setFillColor(239, 248, 245);
+//     pdf.roundedRect(
+//       15,
+//       y,
+//       pageWidth - 30,
+//       27,
+//       4,
+//       4,
+//       "F"
+//     );
+
+//     pdf.setTextColor(33, 102, 91);
+//     pdf.setFont("helvetica", "bold");
+//     pdf.setFontSize(11);
+
+//     pdf.text(
+//       "Appointment Status: CONFIRMED",
+//       pageWidth / 2,
+//       y + 11,
+//       { align: "center" }
+//     );
+
+//     pdf.setFont("helvetica", "normal");
+//     pdf.setFontSize(9);
+
+//     pdf.text(
+//       "Please carry this appointment slip during your visit.",
+//       pageWidth / 2,
+//       y + 19,
+//       { align: "center" }
+//     );
+
+//     /* FOOTER */
+
+//     const footerY =
+//       pdf.internal.pageSize.getHeight() - 18;
+
+//     pdf.setDrawColor(220, 220, 220);
+
+//     pdf.line(
+//       15,
+//       footerY - 6,
+//       pageWidth - 15,
+//       footerY - 6
+//     );
+
+//     pdf.setTextColor(110, 110, 110);
+//     pdf.setFontSize(8);
+
+//     pdf.text(
+//       "Punar Axis Therapy",
+//       15,
+//       footerY
+//     );
+
+//     pdf.text(
+//       "www.punaraxistherapy.in",
+//       pageWidth - 15,
+//       footerY,
+//       { align: "right" }
+//     );
+
+//     pdf.save(
+//       `Punar-Axis-Appointment-${appointment.id}.pdf`
+//     );
+//   };
+
+//   /* --------------------------------
+//      PRINT SLIP
+//   -------------------------------- */
+
+//   const printAppointment = (appointment) => {
+//     if (!appointment) return;
+
+//     const printWindow = window.open(
+//       "",
+//       "_blank",
+//       "width=800,height=900"
+//     );
+
+//     if (!printWindow) {
+//       alert("Please allow pop-ups to print the appointment slip.");
+//       return;
+//     }
+
+//     printWindow.document.write(`
+//       <!DOCTYPE html>
+//       <html>
+//         <head>
+//           <title>Appointment Slip - ${appointment.id}</title>
+
+//           <style>
+//             * {
+//               box-sizing: border-box;
+//             }
+
+//             body {
+//               margin: 0;
+//               padding: 30px;
+//               font-family: Arial, sans-serif;
+//               color: #252525;
+//               background: #ffffff;
+//             }
+
+//             .slip {
+//               max-width: 720px;
+//               margin: auto;
+//               border: 1px solid #dfe7e4;
+//               border-radius: 14px;
+//               overflow: hidden;
+//             }
+
+//             .header {
+//               background: #21665b;
+//               color: white;
+//               text-align: center;
+//               padding: 28px 20px;
+//             }
+
+//             .header h1 {
+//               margin: 0;
+//               font-size: 24px;
+//             }
+
+//             .header p {
+//               margin: 7px 0 0;
+//               font-size: 13px;
+//             }
+
+//             .content {
+//               padding: 28px;
+//             }
+
+//             .appointment-id {
+//               color: #21665b;
+//               font-weight: bold;
+//               margin-bottom: 22px;
+//             }
+
+//             .section {
+//               margin-bottom: 25px;
+//             }
+
+//             .section h3 {
+//               margin: 0 0 14px;
+//               color: #21665b;
+//               font-size: 16px;
+//               border-bottom: 1px solid #e5e5e5;
+//               padding-bottom: 8px;
+//             }
+
+//             .row {
+//               display: grid;
+//               grid-template-columns: 1fr 1fr;
+//               gap: 18px;
+//               margin-bottom: 12px;
+//             }
+
+//             .label {
+//               font-size: 11px;
+//               color: #777;
+//               margin-bottom: 4px;
+//             }
+
+//             .value {
+//               font-size: 14px;
+//               font-weight: 600;
+//             }
+
+//             .status {
+//               background: #eaf7f2;
+//               color: #21665b;
+//               padding: 15px;
+//               border-radius: 10px;
+//               text-align: center;
+//               font-weight: bold;
+//             }
+
+//             .notes {
+//               background: #f7f9f8;
+//               padding: 14px;
+//               border-radius: 8px;
+//               line-height: 1.5;
+//             }
+
+//             .footer {
+//               text-align: center;
+//               border-top: 1px solid #e5e5e5;
+//               padding: 18px;
+//               color: #777;
+//               font-size: 11px;
+//             }
+
+//             @media print {
+//               body {
+//                 padding: 0;
+//               }
+
+//               .slip {
+//                 border: none;
+//               }
+//             }
+//           </style>
+//         </head>
+
+//         <body>
+//           <div class="slip">
+
+//             <div class="header">
+//               <h1>PUNAR AXIS THERAPY</h1>
+//               <p>Ayurveda & Physiotherapy</p>
+//               <p>Appointment Confirmation Slip</p>
+//             </div>
+
+//             <div class="content">
+
+//               <div class="appointment-id">
+//                 Appointment ID: ${appointment.id}
+//               </div>
+
+//               <div class="section">
+//                 <h3>Patient Details</h3>
+
+//                 <div class="row">
+//                   <div>
+//                     <div class="label">Patient Name</div>
+//                     <div class="value">
+//                       ${appointment.name || "-"}
+//                     </div>
+//                   </div>
+
+//                   <div>
+//                     <div class="label">Mobile Number</div>
+//                     <div class="value">
+//                       ${appointment.phone || "-"}
+//                     </div>
+//                   </div>
+//                 </div>
+
+//                 <div class="row">
+//                   <div>
+//                     <div class="label">Email</div>
+//                     <div class="value">
+//                       ${appointment.email || "-"}
+//                     </div>
+//                   </div>
+
+//                   <div>
+//                     <div class="label">Age / Gender</div>
+//                     <div class="value">
+//                       ${appointment.age || "-"} /
+//                       ${appointment.gender || "-"}
+//                     </div>
+//                   </div>
+//                 </div>
+
+//                 <div class="row">
+//                   <div>
+//                     <div class="label">Treatment</div>
+//                     <div class="value">
+//                       ${appointment.treatment || "-"}
+//                     </div>
+//                   </div>
+
+//                   <div>
+//                     <div class="label">Status</div>
+//                     <div class="value">
+//                       ${appointment.status || "Confirmed"}
+//                     </div>
+//                   </div>
+//                 </div>
+//               </div>
+
+//               <div class="section">
+//                 <h3>Appointment Details</h3>
+
+//                 <div class="row">
+//                   <div>
+//                     <div class="label">Doctor</div>
+//                     <div class="value">
+//                       ${appointment.doctorName || "-"}
+//                     </div>
+//                   </div>
+
+//                   <div>
+//                     <div class="label">Date</div>
+//                     <div class="value">
+//                       ${appointment.date || "-"}
+//                     </div>
+//                   </div>
+//                 </div>
+
+//                 <div class="row">
+//                   <div>
+//                     <div class="label">Time</div>
+//                     <div class="value">
+//                       ${appointment.slot || "-"}
+//                     </div>
+//                   </div>
+//                 </div>
+//               </div>
+
+//               <div class="section">
+//                 <h3>Notes</h3>
+
+//                 <div class="notes">
+//                   ${
+//                     appointment.notes ||
+//                     "No additional notes provided."
+//                   }
+//                 </div>
+//               </div>
+
+//               <div class="status">
+//                 APPOINTMENT CONFIRMED
+//               </div>
+
+//             </div>
+
+//             <div class="footer">
+//               Punar Axis Therapy ·
+//               www.punaraxistherapy.in
+//             </div>
+
+//           </div>
+
+//           <script>
+//             window.onload = function() {
+//               window.print();
+//             };
+//           </script>
+
+//         </body>
+//       </html>
+//     `);
+
+//     printWindow.document.close();
+//   };
+
+//   /* --------------------------------
+//      BOOK APPOINTMENT
+//   -------------------------------- */
 
 //   const bookAppointment = (e) => {
 //     e.preventDefault();
@@ -88,7 +643,8 @@
 //       (appointment) =>
 //         appointment.doctorId === selectedDoctor &&
 //         appointment.date === selectedDate &&
-//         appointment.slot === selectedSlot
+//         appointment.slot === selectedSlot &&
+//         appointment.status !== "Cancelled"
 //     );
 
 //     if (alreadyBooked) {
@@ -118,7 +674,7 @@
 //       JSON.stringify(updatedAppointments)
 //     );
 
-//     alert("Appointment booked successfully!");
+//     setBookingSuccess(newAppointment);
 
 //     setPatient({
 //       name: "",
@@ -133,26 +689,27 @@
 //     setSelectedSlot("");
 //   };
 
-//   const cancelAppointment = (id) => {
-//     const updatedAppointments = appointments.filter(
-//       (appointment) => appointment.id !== id
-//     );
-
-//     setAppointments(updatedAppointments);
-
-//     localStorage.setItem(
-//       "clinic_appointments",
-//       JSON.stringify(updatedAppointments)
-//     );
+//   const closeSuccess = () => {
+//     setBookingSuccess(null);
 //   };
 
 //   return (
 //     <div className="clinic-page">
 
+//       {/* HEADER */}
+
 //       <div className="clinic-header">
+
 //         <div>
-//           <h1>Clinic Management</h1>
-//           <p>Appointment & Inventory Management</p>
+//           <div className="brand-title">
+//             Punar Axis Therapy
+//           </div>
+
+//           <h1>Book Appointment</h1>
+
+//           <p>
+//             Ayurveda & Physiotherapy · Appointment Management
+//           </p>
 //         </div>
 
 //         <div className="clinic-date">
@@ -163,15 +720,28 @@
 //             year: "numeric",
 //           })}
 //         </div>
+
 //       </div>
+
+//       {/* FORM */}
 
 //       <div className="clinic-grid">
 
-//         {/* APPOINTMENT FORM */}
+//         <div className="clinic-card appointment-form-card">
 
-//         <div className="clinic-card">
+//           <div className="card-heading">
+//             <div>
+//               <h2>Patient Appointment</h2>
+//               <p>
+//                 Enter patient details and select an available
+//                 appointment slot.
+//               </p>
+//             </div>
 
-//           <h2>Book Appointment</h2>
+//             <div className="form-badge">
+//               New Appointment
+//             </div>
+//           </div>
 
 //           <form onSubmit={bookAppointment}>
 
@@ -253,10 +823,21 @@
 //                     })
 //                   }
 //                 >
-//                   <option value="">Select Gender</option>
-//                   <option value="Male">Male</option>
-//                   <option value="Female">Female</option>
-//                   <option value="Other">Other</option>
+//                   <option value="">
+//                     Select Gender
+//                   </option>
+
+//                   <option value="Male">
+//                     Male
+//                   </option>
+
+//                   <option value="Female">
+//                     Female
+//                   </option>
+
+//                   <option value="Other">
+//                     Other
+//                   </option>
 //                 </select>
 //               </div>
 
@@ -272,16 +853,22 @@
 //                     })
 //                   }
 //                 >
-//                   <option value="">Select Treatment</option>
+//                   <option value="">
+//                     Select Treatment
+//                   </option>
+
 //                   <option value="Physiotherapy">
 //                     Physiotherapy
 //                   </option>
+
 //                   <option value="Rehabilitation">
 //                     Rehabilitation
 //                   </option>
+
 //                   <option value="Pain Management">
 //                     Pain Management
 //                   </option>
+
 //                   <option value="Exercise Therapy">
 //                     Exercise Therapy
 //                   </option>
@@ -289,6 +876,8 @@
 //               </div>
 
 //             </div>
+
+//             {/* DOCTOR */}
 
 //             <div className="full-field">
 
@@ -301,19 +890,24 @@
 //                   setSelectedSlot("");
 //                 }}
 //               >
-//                 <option value="">Select Doctor</option>
+//                 <option value="">
+//                   Select Doctor
+//                 </option>
 
-//                 {doctors.map((doctor) => (
+//                 {doctors.map((doctorItem) => (
 //                   <option
-//                     key={doctor.id}
-//                     value={doctor.id}
+//                     key={doctorItem.id}
+//                     value={doctorItem.id}
 //                   >
-//                     {doctor.name} - {doctor.specialty}
+//                     {doctorItem.name} -{" "}
+//                     {doctorItem.specialty}
 //                   </option>
 //                 ))}
 //               </select>
 
 //             </div>
+
+//             {/* DATE */}
 
 //             <div className="full-field">
 
@@ -338,7 +932,9 @@
 //             {doctor && (
 //               <div className="slot-section">
 
-//                 <label>Available Doctor Slots</label>
+//                 <label>
+//                   Available Doctor Slots
+//                 </label>
 
 //                 <div className="slot-grid">
 
@@ -368,7 +964,9 @@
 //                         {slot}
 
 //                         {isBooked && (
-//                           <small>Booked</small>
+//                           <small>
+//                             Booked
+//                           </small>
 //                         )}
 //                       </button>
 //                     );
@@ -378,6 +976,8 @@
 
 //               </div>
 //             )}
+
+//             {/* NOTES */}
 
 //             <div className="full-field">
 
@@ -396,6 +996,8 @@
 
 //             </div>
 
+//             {/* SUBMIT */}
+
 //             <button
 //               type="submit"
 //               className="primary-btn"
@@ -407,163 +1009,94 @@
 
 //         </div>
 
-//         {/* INVENTORY */}
+//       </div>
 
-//         <div className="clinic-card">
+//       {/* SUCCESS MODAL */}
 
-//           <div className="card-heading">
+//       {bookingSuccess && (
+//         <div className="pdf-modal-overlay">
 
-//             <div>
-//               <h2>Inventory</h2>
-//               <p>Clinic stock overview</p>
+//           <div className="pdf-success-modal">
+
+//             <div className="success-icon">
+//               ✓
 //             </div>
 
-//             <button className="secondary-btn">
-//               + Add Item
+//             <h2>
+//               Appointment Confirmed
+//             </h2>
+
+//             <p>
+//               The appointment has been successfully
+//               booked.
+//             </p>
+
+//             <div className="appointment-summary">
+
+//               <div>
+//                 <span>Appointment ID</span>
+//                 <strong>
+//                   {bookingSuccess.id}
+//                 </strong>
+//               </div>
+
+//               <div>
+//                 <span>Patient</span>
+//                 <strong>
+//                   {bookingSuccess.name}
+//                 </strong>
+//               </div>
+
+//               <div>
+//                 <span>Doctor</span>
+//                 <strong>
+//                   {bookingSuccess.doctorName}
+//                 </strong>
+//               </div>
+
+//               <div>
+//                 <span>Date & Time</span>
+//                 <strong>
+//                   {bookingSuccess.date} ·{" "}
+//                   {bookingSuccess.slot}
+//                 </strong>
+//               </div>
+
+//             </div>
+
+//             <div className="pdf-actions">
+
+//               <button
+//                 className="pdf-btn"
+//                 onClick={() =>
+//                   generatePDF(bookingSuccess)
+//                 }
+//               >
+//                 Generate PDF
+//               </button>
+
+//               <button
+//                 className="print-btn"
+//                 onClick={() =>
+//                   printAppointment(bookingSuccess)
+//                 }
+//               >
+//                 Print Slip
+//               </button>
+
+//             </div>
+
+//             <button
+//               className="close-success-btn"
+//               onClick={closeSuccess}
+//             >
+//               Done
 //             </button>
 
 //           </div>
 
-//           <div className="inventory-list">
-
-//             {inventory.map((item) => (
-
-//               <div
-//                 className="inventory-item"
-//                 key={item.id}
-//               >
-
-//                 <div>
-//                   <h4>{item.name}</h4>
-//                   <span>{item.unit}</span>
-//                 </div>
-
-//                 <div
-//                   className={
-//                     item.stock <= 10
-//                       ? "low-stock"
-//                       : "stock"
-//                   }
-//                 >
-//                   {item.stock}
-
-//                   <small>
-//                     {item.stock <= 10
-//                       ? "Low Stock"
-//                       : "In Stock"}
-//                   </small>
-//                 </div>
-
-//               </div>
-
-//             ))}
-
-//           </div>
-
 //         </div>
-
-//       </div>
-
-//       {/* APPOINTMENT LIST */}
-
-//       <div className="clinic-card appointment-card">
-
-//         <div className="card-heading">
-
-//           <div>
-//             <h2>Appointments</h2>
-//             <p>Upcoming clinic appointments</p>
-//           </div>
-
-//           <div className="appointment-count">
-//             {appointments.length} Appointments
-//           </div>
-
-//         </div>
-
-//         {appointments.length === 0 ? (
-
-//           <div className="empty-state">
-//             No appointments booked yet.
-//           </div>
-
-//         ) : (
-
-//           <div className="appointment-table">
-
-//             <div className="table-header">
-//               <span>Patient</span>
-//               <span>Doctor</span>
-//               <span>Date</span>
-//               <span>Time</span>
-//               <span>Treatment</span>
-//               <span>Status</span>
-//               <span>Action</span>
-//             </div>
-
-//             {appointments.map((appointment) => (
-
-//               <div
-//                 className="table-row"
-//                 key={appointment.id}
-//               >
-
-//                 <span>
-//                   <strong>
-//                     {appointment.name}
-//                   </strong>
-
-//                   <small>
-//                     {appointment.phone}
-//                   </small>
-//                 </span>
-
-//                 <span>
-//                   {appointment.doctorName}
-//                 </span>
-
-//                 <span>
-//                   {appointment.date}
-//                 </span>
-
-//                 <span>
-//                   {appointment.slot}
-//                 </span>
-
-//                 <span>
-//                   {appointment.treatment || "-"}
-//                 </span>
-
-//                 <span>
-//                   <b className="status">
-//                     {appointment.status}
-//                   </b>
-//                 </span>
-
-//                 <span>
-
-//                   <button
-//                     className="cancel-btn"
-//                     onClick={() =>
-//                       cancelAppointment(
-//                         appointment.id
-//                       )
-//                     }
-//                   >
-//                     Cancel
-//                   </button>
-
-//                 </span>
-
-//               </div>
-
-//             ))}
-
-//           </div>
-
-//         )}
-
-//       </div>
+//       )}
 
 //     </div>
 //   );
@@ -571,39 +1104,91 @@
 
 // export default Appointment;
 
-
 import React, { useEffect, useMemo, useState } from "react";
 import jsPDF from "jspdf";
 import "./Appointment.css";
 
-function Appointment() {
-  const doctors = [
-    {
-      id: "DOC001",
-      name: "Dr. Rahul Sharma",
-      specialty: "Physiotherapist",
-      slots: [
-        "09:00 AM",
-        "10:00 AM",
-        "11:00 AM",
-        "04:00 PM",
-        "05:00 PM",
-      ],
-    },
-    {
-      id: "DOC002",
-      name: "Dr. Neha Verma",
-      specialty: "Rehabilitation Therapist",
-      slots: [
-        "10:00 AM",
-        "11:00 AM",
-        "12:00 PM",
-        "03:00 PM",
-        "04:00 PM",
-      ],
-    },
-  ];
+/* =========================================================
+   SLOT GENERATOR
+   End time itself is NOT a bookable slot.
+   Example:
+   08:00 AM - 02:00 PM
+   => 08:00, 08:15 ... 01:45 PM
+   ========================================================= */
 
+const generateSlots = (startHour, startMinute, endHour, endMinute) => {
+  const slots = [];
+
+  let current = startHour * 60 + startMinute;
+  const end = endHour * 60 + endMinute;
+
+  while (current < end) {
+    const hour24 = Math.floor(current / 60);
+    const minute = current % 60;
+
+    const hour12 = hour24 % 12 || 12;
+    const period = hour24 >= 12 ? "PM" : "AM";
+
+    const formattedMinute = String(minute).padStart(2, "0");
+
+    slots.push(
+      `${String(hour12).padStart(2, "0")}:${formattedMinute} ${period}`
+    );
+
+    current += 15;
+  }
+
+  return slots;
+};
+
+/* =========================================================
+   DOCTORS
+   ========================================================= */
+
+const DOCTORS = [
+  {
+    id: "DOC001",
+    name: "Dr. Vikas",
+    specialty: "Physiotherapist",
+    startTime: "8:00 AM",
+    endTime: "2:00 PM",
+    slots: generateSlots(8, 0, 14, 0),
+  },
+  {
+    id: "DOC002",
+    name: "Dr. Shahnaz",
+    specialty: "Physiotherapist",
+    startTime: "2:00 PM",
+    endTime: "7:00 PM",
+    slots: generateSlots(14, 0, 19, 0),
+  },
+  {
+    id: "DOC003",
+    name: "Dr. Ankush",
+    specialty: "Ayurvedic Specialist",
+    startTime: "9:30 AM",
+    endTime: "5:30 PM",
+    slots: generateSlots(9, 30, 17, 30),
+  },
+];
+
+/* =========================================================
+   TREATMENTS
+   ========================================================= */
+
+const TREATMENTS = [
+  "Physiotherapy",
+  "Integrated Physiotherapy",
+  "Ayurveda",
+  "Integrated Ayurveda",
+  "Sports Rehab",
+];
+
+/* =========================================================
+   MAIN COMPONENT
+   ========================================================= */
+
+function Appointment() {
   const [appointments, setAppointments] = useState([]);
 
   const [selectedDoctor, setSelectedDoctor] = useState("");
@@ -621,10 +1206,14 @@ function Appointment() {
     age: "",
     gender: "",
     treatment: "",
-    notes: "",
+    amount: "",
   });
 
   const [bookingSuccess, setBookingSuccess] = useState(null);
+
+  /* =======================================================
+     LOAD APPOINTMENTS
+     ======================================================= */
 
   useEffect(() => {
     const savedAppointments = localStorage.getItem(
@@ -635,14 +1224,25 @@ function Appointment() {
       try {
         setAppointments(JSON.parse(savedAppointments));
       } catch (error) {
-        console.error("Unable to load appointments:", error);
+        console.error(
+          "Unable to load appointments:",
+          error
+        );
       }
     }
   }, []);
 
-  const doctor = doctors.find(
+  /* =======================================================
+     SELECTED DOCTOR
+     ======================================================= */
+
+  const doctor = DOCTORS.find(
     (item) => item.id === selectedDoctor
   );
+
+  /* =======================================================
+     BOOKED SLOTS
+     ======================================================= */
 
   const bookedSlots = useMemo(() => {
     return appointments
@@ -653,79 +1253,156 @@ function Appointment() {
           appointment.status !== "Cancelled"
       )
       .map((appointment) => appointment.slot);
-  }, [appointments, selectedDoctor, selectedDate]);
+  }, [
+    appointments,
+    selectedDoctor,
+    selectedDate,
+  ]);
 
-  /* --------------------------------
+  /* =======================================================
+     HANDLE PATIENT INPUT
+     ======================================================= */
+
+  const updatePatient = (field, value) => {
+    setPatient((previous) => ({
+      ...previous,
+      [field]: value,
+    }));
+  };
+
+  /* =======================================================
      PDF GENERATION
-  -------------------------------- */
+     ======================================================= */
 
   const generatePDF = (appointment) => {
     if (!appointment) return;
 
     const pdf = new jsPDF();
 
-    const pageWidth = pdf.internal.pageSize.getWidth();
+    const pageWidth =
+      pdf.internal.pageSize.getWidth();
+
+    const pageHeight =
+      pdf.internal.pageSize.getHeight();
 
     /* HEADER */
 
-    pdf.setFillColor(33, 102, 91);
-    pdf.rect(0, 0, pageWidth, 38, "F");
+    pdf.setFillColor(15, 107, 91);
+
+    pdf.rect(
+      0,
+      0,
+      pageWidth,
+      42,
+      "F"
+    );
 
     pdf.setTextColor(255, 255, 255);
-    pdf.setFont("helvetica", "bold");
+
+    pdf.setFont(
+      "helvetica",
+      "bold"
+    );
+
     pdf.setFontSize(21);
 
     pdf.text(
       "PUNAR AXIS THERAPY",
       pageWidth / 2,
       15,
-      { align: "center" }
+      {
+        align: "center",
+      }
     );
 
-    pdf.setFont("helvetica", "normal");
+    pdf.setFont(
+      "helvetica",
+      "normal"
+    );
+
     pdf.setFontSize(10);
 
     pdf.text(
       "Ayurveda & Physiotherapy",
       pageWidth / 2,
-      23,
-      { align: "center" }
+      24,
+      {
+        align: "center",
+      }
     );
 
     pdf.text(
       "Appointment Confirmation Slip",
       pageWidth / 2,
-      31,
-      { align: "center" }
+      33,
+      {
+        align: "center",
+      }
     );
 
     /* APPOINTMENT ID */
 
-    pdf.setTextColor(33, 102, 91);
-    pdf.setFont("helvetica", "bold");
+    pdf.setTextColor(
+      15,
+      107,
+      91
+    );
+
+    pdf.setFont(
+      "helvetica",
+      "bold"
+    );
+
     pdf.setFontSize(12);
 
     pdf.text(
       `Appointment ID: ${appointment.id}`,
       15,
-      52
+      55
     );
 
-    pdf.setDrawColor(220, 220, 220);
-    pdf.line(15, 58, pageWidth - 15, 58);
+    pdf.setDrawColor(
+      220,
+      228,
+      225
+    );
+
+    pdf.line(
+      15,
+      61,
+      pageWidth - 15,
+      61
+    );
 
     /* PATIENT DETAILS */
 
-    pdf.setTextColor(40, 40, 40);
-    pdf.setFont("helvetica", "bold");
+    pdf.setTextColor(
+      35,
+      55,
+      50
+    );
+
+    pdf.setFont(
+      "helvetica",
+      "bold"
+    );
+
     pdf.setFontSize(13);
 
-    pdf.text("Patient Details", 15, 70);
+    pdf.text(
+      "Patient Details",
+      15,
+      74
+    );
 
-    pdf.setFont("helvetica", "normal");
-    pdf.setFontSize(11);
+    pdf.setFont(
+      "helvetica",
+      "normal"
+    );
 
-    let y = 80;
+    pdf.setFontSize(10.5);
+
+    let y = 84;
 
     pdf.text(
       `Patient Name: ${appointment.name || "-"}`,
@@ -767,11 +1444,23 @@ function Appointment() {
       y
     );
 
+    y += 9;
+
+    pdf.text(
+      `Treatment Amount: ₹${appointment.amount || "0"}`,
+      15,
+      y
+    );
+
     /* APPOINTMENT DETAILS */
 
     y += 20;
 
-    pdf.setFont("helvetica", "bold");
+    pdf.setFont(
+      "helvetica",
+      "bold"
+    );
+
     pdf.setFontSize(13);
 
     pdf.text(
@@ -782,11 +1471,23 @@ function Appointment() {
 
     y += 10;
 
-    pdf.setFont("helvetica", "normal");
-    pdf.setFontSize(11);
+    pdf.setFont(
+      "helvetica",
+      "normal"
+    );
+
+    pdf.setFontSize(10.5);
 
     pdf.text(
       `Doctor: ${appointment.doctorName || "-"}`,
+      15,
+      y
+    );
+
+    y += 9;
+
+    pdf.text(
+      `Specialty: ${appointment.doctorSpecialty || "-"}`,
       15,
       y
     );
@@ -813,44 +1514,69 @@ function Appointment() {
       y
     );
 
-    /* NOTES */
+    /* AMOUNT BOX */
 
-    y += 20;
+    y += 17;
 
-    pdf.setFont("helvetica", "bold");
-    pdf.setFontSize(13);
+    pdf.setFillColor(
+      239,
+      248,
+      245
+    );
+
+    pdf.roundedRect(
+      15,
+      y,
+      pageWidth - 30,
+      30,
+      4,
+      4,
+      "F"
+    );
+
+    pdf.setTextColor(
+      15,
+      107,
+      91
+    );
+
+    pdf.setFont(
+      "helvetica",
+      "bold"
+    );
+
+    pdf.setFontSize(11);
 
     pdf.text(
-      "Notes",
-      15,
-      y
+      "Treatment Amount",
+      pageWidth / 2,
+      y + 11,
+      {
+        align: "center",
+      }
     );
 
-    y += 9;
-
-    pdf.setFont("helvetica", "normal");
-    pdf.setFontSize(10);
-
-    const notes =
-      appointment.notes ||
-      "No additional notes provided.";
-
-    const wrappedNotes = pdf.splitTextToSize(
-      notes,
-      pageWidth - 30
-    );
+    pdf.setFontSize(16);
 
     pdf.text(
-      wrappedNotes,
-      15,
-      y
+      `₹${appointment.amount || "0"}`,
+      pageWidth / 2,
+      y + 22,
+      {
+        align: "center",
+      }
     );
 
-    /* CONFIRMATION BOX */
+    /* CONFIRMATION */
 
-    y += wrappedNotes.length * 6 + 18;
+    y += 43;
 
-    pdf.setFillColor(239, 248, 245);
+    pdf.setFillColor(
+      15,
+      107,
+      91
+    );
+
     pdf.roundedRect(
       15,
       y,
@@ -861,33 +1587,54 @@ function Appointment() {
       "F"
     );
 
-    pdf.setTextColor(33, 102, 91);
-    pdf.setFont("helvetica", "bold");
+    pdf.setTextColor(
+      255,
+      255,
+      255
+    );
+
+    pdf.setFont(
+      "helvetica",
+      "bold"
+    );
+
     pdf.setFontSize(11);
 
     pdf.text(
-      "Appointment Status: CONFIRMED",
+      "APPOINTMENT CONFIRMED",
       pageWidth / 2,
       y + 11,
-      { align: "center" }
+      {
+        align: "center",
+      }
     );
 
-    pdf.setFont("helvetica", "normal");
+    pdf.setFont(
+      "helvetica",
+      "normal"
+    );
+
     pdf.setFontSize(9);
 
     pdf.text(
       "Please carry this appointment slip during your visit.",
       pageWidth / 2,
       y + 19,
-      { align: "center" }
+      {
+        align: "center",
+      }
     );
 
     /* FOOTER */
 
     const footerY =
-      pdf.internal.pageSize.getHeight() - 18;
+      pageHeight - 18;
 
-    pdf.setDrawColor(220, 220, 220);
+    pdf.setDrawColor(
+      220,
+      220,
+      220
+    );
 
     pdf.line(
       15,
@@ -896,7 +1643,12 @@ function Appointment() {
       footerY - 6
     );
 
-    pdf.setTextColor(110, 110, 110);
+    pdf.setTextColor(
+      110,
+      110,
+      110
+    );
+
     pdf.setFontSize(8);
 
     pdf.text(
@@ -909,7 +1661,9 @@ function Appointment() {
       "www.punaraxistherapy.in",
       pageWidth - 15,
       footerY,
-      { align: "right" }
+      {
+        align: "right",
+      }
     );
 
     pdf.save(
@@ -917,21 +1671,24 @@ function Appointment() {
     );
   };
 
-  /* --------------------------------
-     PRINT SLIP
-  -------------------------------- */
+  /* =======================================================
+     PRINT APPOINTMENT
+     ======================================================= */
 
   const printAppointment = (appointment) => {
     if (!appointment) return;
 
-    const printWindow = window.open(
-      "",
-      "_blank",
-      "width=800,height=900"
-    );
+    const printWindow =
+      window.open(
+        "",
+        "_blank",
+        "width=800,height=900"
+      );
 
     if (!printWindow) {
-      alert("Please allow pop-ups to print the appointment slip.");
+      alert(
+        "Please allow pop-ups to print the appointment slip."
+      );
       return;
     }
 
@@ -939,7 +1696,9 @@ function Appointment() {
       <!DOCTYPE html>
       <html>
         <head>
-          <title>Appointment Slip - ${appointment.id}</title>
+          <title>
+            Appointment Slip - ${appointment.id}
+          </title>
 
           <style>
             * {
@@ -950,28 +1709,33 @@ function Appointment() {
               margin: 0;
               padding: 30px;
               font-family: Arial, sans-serif;
-              color: #252525;
+              color: #17312c;
               background: #ffffff;
             }
 
             .slip {
               max-width: 720px;
               margin: auto;
-              border: 1px solid #dfe7e4;
-              border-radius: 14px;
+              border: 1px solid #dce8e4;
+              border-radius: 18px;
               overflow: hidden;
             }
 
             .header {
-              background: #21665b;
+              background:
+                linear-gradient(
+                  135deg,
+                  #0f7665,
+                  #084f43
+                );
               color: white;
               text-align: center;
-              padding: 28px 20px;
+              padding: 30px 20px;
             }
 
             .header h1 {
               margin: 0;
-              font-size: 24px;
+              font-size: 25px;
             }
 
             .header p {
@@ -980,13 +1744,13 @@ function Appointment() {
             }
 
             .content {
-              padding: 28px;
+              padding: 30px;
             }
 
             .appointment-id {
-              color: #21665b;
+              color: #0f6b5b;
               font-weight: bold;
-              margin-bottom: 22px;
+              margin-bottom: 24px;
             }
 
             .section {
@@ -994,24 +1758,24 @@ function Appointment() {
             }
 
             .section h3 {
-              margin: 0 0 14px;
-              color: #21665b;
+              margin: 0 0 15px;
+              color: #0f6b5b;
               font-size: 16px;
-              border-bottom: 1px solid #e5e5e5;
-              padding-bottom: 8px;
+              border-bottom: 1px solid #e5eeeb;
+              padding-bottom: 9px;
             }
 
             .row {
               display: grid;
               grid-template-columns: 1fr 1fr;
               gap: 18px;
-              margin-bottom: 12px;
+              margin-bottom: 14px;
             }
 
             .label {
               font-size: 11px;
-              color: #777;
-              margin-bottom: 4px;
+              color: #778783;
+              margin-bottom: 5px;
             }
 
             .value {
@@ -1019,20 +1783,34 @@ function Appointment() {
               font-weight: 600;
             }
 
+            .amount {
+              margin-top: 20px;
+              padding: 18px;
+              border-radius: 12px;
+              background: #edf8f4;
+              text-align: center;
+            }
+
+            .amount-label {
+              font-size: 11px;
+              color: #6d807a;
+              margin-bottom: 5px;
+            }
+
+            .amount-value {
+              font-size: 24px;
+              color: #0f6b5b;
+              font-weight: 800;
+            }
+
             .status {
-              background: #eaf7f2;
-              color: #21665b;
-              padding: 15px;
+              margin-top: 20px;
+              background: #0f6b5b;
+              color: white;
+              padding: 16px;
               border-radius: 10px;
               text-align: center;
               font-weight: bold;
-            }
-
-            .notes {
-              background: #f7f9f8;
-              padding: 14px;
-              border-radius: 8px;
-              line-height: 1.5;
             }
 
             .footer {
@@ -1052,10 +1830,26 @@ function Appointment() {
                 border: none;
               }
             }
+
+            @media(max-width:600px) {
+              body {
+                padding: 10px;
+              }
+
+              .content {
+                padding: 20px;
+              }
+
+              .row {
+                grid-template-columns: 1fr;
+                gap: 10px;
+              }
+            }
           </style>
         </head>
 
         <body>
+
           <div class="slip">
 
             <div class="header">
@@ -1067,100 +1861,157 @@ function Appointment() {
             <div class="content">
 
               <div class="appointment-id">
-                Appointment ID: ${appointment.id}
+                Appointment ID:
+                ${appointment.id}
               </div>
 
               <div class="section">
-                <h3>Patient Details</h3>
+
+                <h3>
+                  Patient Details
+                </h3>
 
                 <div class="row">
+
                   <div>
-                    <div class="label">Patient Name</div>
+                    <div class="label">
+                      Patient Name
+                    </div>
+
                     <div class="value">
                       ${appointment.name || "-"}
                     </div>
                   </div>
 
                   <div>
-                    <div class="label">Mobile Number</div>
+                    <div class="label">
+                      Mobile Number
+                    </div>
+
                     <div class="value">
                       ${appointment.phone || "-"}
                     </div>
                   </div>
+
                 </div>
 
                 <div class="row">
+
                   <div>
-                    <div class="label">Email</div>
+                    <div class="label">
+                      Email
+                    </div>
+
                     <div class="value">
                       ${appointment.email || "-"}
                     </div>
                   </div>
 
                   <div>
-                    <div class="label">Age / Gender</div>
+                    <div class="label">
+                      Age / Gender
+                    </div>
+
                     <div class="value">
                       ${appointment.age || "-"} /
                       ${appointment.gender || "-"}
                     </div>
                   </div>
+
                 </div>
 
                 <div class="row">
+
                   <div>
-                    <div class="label">Treatment</div>
+                    <div class="label">
+                      Treatment
+                    </div>
+
                     <div class="value">
                       ${appointment.treatment || "-"}
                     </div>
                   </div>
 
                   <div>
-                    <div class="label">Status</div>
+                    <div class="label">
+                      Status
+                    </div>
+
                     <div class="value">
                       ${appointment.status || "Confirmed"}
                     </div>
                   </div>
+
                 </div>
+
               </div>
 
               <div class="section">
-                <h3>Appointment Details</h3>
+
+                <h3>
+                  Appointment Details
+                </h3>
 
                 <div class="row">
+
                   <div>
-                    <div class="label">Doctor</div>
+                    <div class="label">
+                      Doctor
+                    </div>
+
                     <div class="value">
                       ${appointment.doctorName || "-"}
                     </div>
                   </div>
 
                   <div>
-                    <div class="label">Date</div>
+                    <div class="label">
+                      Specialty
+                    </div>
+
+                    <div class="value">
+                      ${appointment.doctorSpecialty || "-"}
+                    </div>
+                  </div>
+
+                </div>
+
+                <div class="row">
+
+                  <div>
+                    <div class="label">
+                      Date
+                    </div>
+
                     <div class="value">
                       ${appointment.date || "-"}
                     </div>
                   </div>
-                </div>
 
-                <div class="row">
                   <div>
-                    <div class="label">Time</div>
+                    <div class="label">
+                      Time
+                    </div>
+
                     <div class="value">
                       ${appointment.slot || "-"}
                     </div>
                   </div>
+
                 </div>
+
               </div>
 
-              <div class="section">
-                <h3>Notes</h3>
+              <div class="amount">
 
-                <div class="notes">
-                  ${
-                    appointment.notes ||
-                    "No additional notes provided."
-                  }
+                <div class="amount-label">
+                  TREATMENT AMOUNT
                 </div>
+
+                <div class="amount-value">
+                  ₹${appointment.amount || "0"}
+                </div>
+
               </div>
 
               <div class="status">
@@ -1189,9 +2040,9 @@ function Appointment() {
     printWindow.document.close();
   };
 
-  /* --------------------------------
+  /* =======================================================
      BOOK APPOINTMENT
-  -------------------------------- */
+     ======================================================= */
 
   const bookAppointment = (e) => {
     e.preventDefault();
@@ -1206,18 +2057,37 @@ function Appointment() {
       return;
     }
 
-    if (!patient.name || !patient.phone) {
-      alert("Please enter patient name and mobile number.");
+    if (!patient.name.trim()) {
+      alert("Please enter patient name.");
       return;
     }
 
-    const alreadyBooked = appointments.some(
-      (appointment) =>
-        appointment.doctorId === selectedDoctor &&
-        appointment.date === selectedDate &&
-        appointment.slot === selectedSlot &&
-        appointment.status !== "Cancelled"
-    );
+    if (!patient.phone.trim()) {
+      alert("Please enter mobile number.");
+      return;
+    }
+
+    if (!patient.treatment) {
+      alert("Please select treatment.");
+      return;
+    }
+
+    if (
+      patient.amount === "" ||
+      Number(patient.amount) < 0
+    ) {
+      alert("Please enter a valid treatment amount.");
+      return;
+    }
+
+    const alreadyBooked =
+      appointments.some(
+        (appointment) =>
+          appointment.doctorId === selectedDoctor &&
+          appointment.date === selectedDate &&
+          appointment.slot === selectedSlot &&
+          appointment.status !== "Cancelled"
+      );
 
     if (alreadyBooked) {
       alert("This slot is already booked.");
@@ -1226,12 +2096,38 @@ function Appointment() {
 
     const newAppointment = {
       id: Date.now(),
+
       doctorId: selectedDoctor,
+
       doctorName: doctor.name,
+
+      doctorSpecialty: doctor.specialty,
+
+      doctorStartTime: doctor.startTime,
+
+      doctorEndTime: doctor.endTime,
+
       date: selectedDate,
+
       slot: selectedSlot,
-      ...patient,
+
+      name: patient.name.trim(),
+
+      phone: patient.phone.trim(),
+
+      email: patient.email.trim(),
+
+      age: patient.age,
+
+      gender: patient.gender,
+
+      treatment: patient.treatment,
+
+      amount: Number(patient.amount),
+
       status: "Confirmed",
+
+      createdAt: new Date().toISOString(),
     };
 
     const updatedAppointments = [
@@ -1239,14 +2135,20 @@ function Appointment() {
       newAppointment,
     ];
 
-    setAppointments(updatedAppointments);
+    setAppointments(
+      updatedAppointments
+    );
 
     localStorage.setItem(
       "clinic_appointments",
-      JSON.stringify(updatedAppointments)
+      JSON.stringify(
+        updatedAppointments
+      )
     );
 
-    setBookingSuccess(newAppointment);
+    setBookingSuccess(
+      newAppointment
+    );
 
     setPatient({
       name: "",
@@ -1255,146 +2157,204 @@ function Appointment() {
       age: "",
       gender: "",
       treatment: "",
-      notes: "",
+      amount: "",
     });
 
     setSelectedSlot("");
   };
 
+  /* =======================================================
+     CLOSE SUCCESS
+     ======================================================= */
+
   const closeSuccess = () => {
     setBookingSuccess(null);
   };
 
+  /* =======================================================
+     RENDER
+     ======================================================= */
+
   return (
     <div className="clinic-page">
 
-      {/* HEADER */}
+      {/* ===================================================
+          HEADER
+          =================================================== */}
 
       <div className="clinic-header">
 
         <div>
+
           <div className="brand-title">
             Punar Axis Therapy
           </div>
 
-          <h1>Book Appointment</h1>
+          <h1>
+            Book Appointment
+          </h1>
 
           <p>
-            Ayurveda & Physiotherapy · Appointment Management
+            Ayurveda & Physiotherapy ·
+            Appointment Management
           </p>
+
         </div>
 
         <div className="clinic-date">
-          {new Date().toLocaleDateString("en-IN", {
-            weekday: "long",
-            day: "numeric",
-            month: "long",
-            year: "numeric",
-          })}
+
+          {new Date().toLocaleDateString(
+            "en-IN",
+            {
+              weekday: "long",
+              day: "numeric",
+              month: "long",
+              year: "numeric",
+            }
+          )}
+
         </div>
 
       </div>
 
-      {/* FORM */}
+      {/* ===================================================
+          FORM
+          =================================================== */}
 
       <div className="clinic-grid">
 
         <div className="clinic-card appointment-form-card">
 
           <div className="card-heading">
+
             <div>
-              <h2>Patient Appointment</h2>
+
+              <h2>
+                Patient Appointment
+              </h2>
+
               <p>
-                Enter patient details and select an available
-                appointment slot.
+                Enter patient details,
+                select treatment and choose
+                an available doctor slot.
               </p>
+
             </div>
 
             <div className="form-badge">
               New Appointment
             </div>
+
           </div>
 
-          <form onSubmit={bookAppointment}>
+          <form
+            onSubmit={bookAppointment}
+          >
+
+            {/* =============================================
+                PATIENT INFORMATION
+                ============================================= */}
 
             <div className="form-grid">
 
               <div>
-                <label>Patient Name</label>
+
+                <label>
+                  Patient Name *
+                </label>
 
                 <input
                   type="text"
                   placeholder="Enter patient name"
                   value={patient.name}
                   onChange={(e) =>
-                    setPatient({
-                      ...patient,
-                      name: e.target.value,
-                    })
+                    updatePatient(
+                      "name",
+                      e.target.value
+                    )
                   }
                 />
+
               </div>
 
               <div>
-                <label>Mobile Number</label>
+
+                <label>
+                  Mobile Number *
+                </label>
 
                 <input
                   type="tel"
                   placeholder="Enter mobile number"
                   value={patient.phone}
                   onChange={(e) =>
-                    setPatient({
-                      ...patient,
-                      phone: e.target.value,
-                    })
+                    updatePatient(
+                      "phone",
+                      e.target.value
+                    )
                   }
                 />
+
               </div>
 
               <div>
-                <label>Email</label>
+
+                <label>
+                  Email
+                </label>
 
                 <input
                   type="email"
                   placeholder="Email address"
                   value={patient.email}
                   onChange={(e) =>
-                    setPatient({
-                      ...patient,
-                      email: e.target.value,
-                    })
+                    updatePatient(
+                      "email",
+                      e.target.value
+                    )
                   }
                 />
+
               </div>
 
               <div>
-                <label>Age</label>
+
+                <label>
+                  Age
+                </label>
 
                 <input
                   type="number"
+                  min="0"
+                  max="120"
                   placeholder="Age"
                   value={patient.age}
                   onChange={(e) =>
-                    setPatient({
-                      ...patient,
-                      age: e.target.value,
-                    })
+                    updatePatient(
+                      "age",
+                      e.target.value
+                    )
                   }
                 />
+
               </div>
 
               <div>
-                <label>Gender</label>
+
+                <label>
+                  Gender
+                </label>
 
                 <select
                   value={patient.gender}
                   onChange={(e) =>
-                    setPatient({
-                      ...patient,
-                      gender: e.target.value,
-                    })
+                    updatePatient(
+                      "gender",
+                      e.target.value
+                    )
                   }
                 >
+
                   <option value="">
                     Select Gender
                   </option>
@@ -1410,96 +2370,179 @@ function Appointment() {
                   <option value="Other">
                     Other
                   </option>
+
                 </select>
+
               </div>
 
               <div>
-                <label>Treatment / Session</label>
+
+                <label>
+                  Treatment *
+                </label>
 
                 <select
                   value={patient.treatment}
                   onChange={(e) =>
-                    setPatient({
-                      ...patient,
-                      treatment: e.target.value,
-                    })
+                    updatePatient(
+                      "treatment",
+                      e.target.value
+                    )
                   }
                 >
+
                   <option value="">
                     Select Treatment
                   </option>
 
-                  <option value="Physiotherapy">
-                    Physiotherapy
-                  </option>
+                  {TREATMENTS.map(
+                    (treatment) => (
+                      <option
+                        key={treatment}
+                        value={treatment}
+                      >
+                        {treatment}
+                      </option>
+                    )
+                  )}
 
-                  <option value="Rehabilitation">
-                    Rehabilitation
-                  </option>
-
-                  <option value="Pain Management">
-                    Pain Management
-                  </option>
-
-                  <option value="Exercise Therapy">
-                    Exercise Therapy
-                  </option>
                 </select>
+
               </div>
 
             </div>
 
-            {/* DOCTOR */}
+            {/* =============================================
+                AMOUNT
+                ============================================= */}
 
             <div className="full-field">
 
-              <label>Doctor</label>
+              <label>
+                Treatment Amount (₹) *
+              </label>
+
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                placeholder="Enter treatment amount"
+                value={patient.amount}
+                onChange={(e) =>
+                  updatePatient(
+                    "amount",
+                    e.target.value
+                  )
+                }
+              />
+
+            </div>
+
+            {/* =============================================
+                DOCTOR
+                ============================================= */}
+
+            <div className="full-field">
+
+              <label>
+                Doctor *
+              </label>
 
               <select
                 value={selectedDoctor}
                 onChange={(e) => {
-                  setSelectedDoctor(e.target.value);
+                  setSelectedDoctor(
+                    e.target.value
+                  );
+
                   setSelectedSlot("");
                 }}
               >
+
                 <option value="">
                   Select Doctor
                 </option>
 
-                {doctors.map((doctorItem) => (
-                  <option
-                    key={doctorItem.id}
-                    value={doctorItem.id}
-                  >
-                    {doctorItem.name} -{" "}
-                    {doctorItem.specialty}
-                  </option>
-                ))}
+                {DOCTORS.map(
+                  (doctorItem) => (
+                    <option
+                      key={doctorItem.id}
+                      value={doctorItem.id}
+                    >
+                      {doctorItem.name} -{" "}
+                      {doctorItem.specialty}
+                    </option>
+                  )
+                )}
+
               </select>
 
             </div>
 
-            {/* DATE */}
+            {/* =============================================
+                DOCTOR TIMING
+                ============================================= */}
+
+            {doctor && (
+              <div className="full-field">
+
+                <div
+                  style={{
+                    padding: "13px 15px",
+                    borderRadius: "13px",
+                    background:
+                      "#eef8f5",
+                    border:
+                      "1px solid #d3e9e2",
+                    color: "#0f6b5b",
+                    fontSize: "13px",
+                    fontWeight: "700",
+                  }}
+                >
+                  {doctor.name} ·{" "}
+                  {doctor.specialty}
+                  {" — "}
+                  {doctor.startTime} to{" "}
+                  {doctor.endTime}
+                  {" · 15-minute slots"}
+                </div>
+
+              </div>
+            )}
+
+            {/* =============================================
+                DATE
+                ============================================= */}
 
             <div className="full-field">
 
-              <label>Appointment Date</label>
+              <label>
+                Appointment Date *
+              </label>
 
               <input
                 type="date"
                 value={selectedDate}
-                min={new Date()
-                  .toISOString()
-                  .split("T")[0]}
+                min={
+                  new Date()
+                    .toISOString()
+                    .split("T")[0]
+                }
                 onChange={(e) => {
-                  setSelectedDate(e.target.value);
+
+                  setSelectedDate(
+                    e.target.value
+                  );
+
                   setSelectedSlot("");
                 }}
               />
 
             </div>
 
-            {/* SLOTS */}
+            {/* =============================================
+                SLOTS
+                ============================================= */}
 
             {doctor && (
               <div className="slot-section">
@@ -1510,65 +2553,56 @@ function Appointment() {
 
                 <div className="slot-grid">
 
-                  {doctor.slots.map((slot) => {
+                  {doctor.slots.map(
+                    (slot) => {
 
-                    const isBooked =
-                      bookedSlots.includes(slot);
+                      const isBooked =
+                        bookedSlots.includes(
+                          slot
+                        );
 
-                    return (
-                      <button
-                        type="button"
-                        key={slot}
-                        disabled={isBooked}
-                        className={`slot ${
-                          selectedSlot === slot
-                            ? "selected"
-                            : ""
-                        } ${
-                          isBooked
-                            ? "booked"
-                            : ""
-                        }`}
-                        onClick={() =>
-                          setSelectedSlot(slot)
-                        }
-                      >
-                        {slot}
+                      return (
+                        <button
+                          type="button"
+                          key={slot}
+                          disabled={isBooked}
+                          className={`slot ${
+                            selectedSlot === slot
+                              ? "selected"
+                              : ""
+                          } ${
+                            isBooked
+                              ? "booked"
+                              : ""
+                          }`}
+                          onClick={() =>
+                            setSelectedSlot(
+                              slot
+                            )
+                          }
+                        >
 
-                        {isBooked && (
-                          <small>
-                            Booked
-                          </small>
-                        )}
-                      </button>
-                    );
-                  })}
+                          {slot}
+
+                          {isBooked && (
+                            <small>
+                              Booked
+                            </small>
+                          )}
+
+                        </button>
+                      );
+                    }
+                  )}
 
                 </div>
 
               </div>
             )}
 
-            {/* NOTES */}
-
-            <div className="full-field">
-
-              <label>Notes</label>
-
-              <textarea
-                placeholder="Patient notes / additional information"
-                value={patient.notes}
-                onChange={(e) =>
-                  setPatient({
-                    ...patient,
-                    notes: e.target.value,
-                  })
-                }
-              />
-
-            </div>
-
-            {/* SUBMIT */}
+            {/* =============================================
+                SUBMIT
+                ============================================= */}
 
             <button
               type="submit"
@@ -1583,7 +2617,9 @@ function Appointment() {
 
       </div>
 
-      {/* SUCCESS MODAL */}
+      {/* ===================================================
+          SUCCESS MODAL
+          =================================================== */}
 
       {bookingSuccess && (
         <div className="pdf-modal-overlay">
@@ -1599,39 +2635,85 @@ function Appointment() {
             </h2>
 
             <p>
-              The appointment has been successfully
-              booked.
+              The appointment has been
+              successfully booked.
             </p>
 
             <div className="appointment-summary">
 
               <div>
-                <span>Appointment ID</span>
+
+                <span>
+                  Appointment ID
+                </span>
+
                 <strong>
                   {bookingSuccess.id}
                 </strong>
+
               </div>
 
               <div>
-                <span>Patient</span>
+
+                <span>
+                  Patient
+                </span>
+
                 <strong>
                   {bookingSuccess.name}
                 </strong>
+
               </div>
 
               <div>
-                <span>Doctor</span>
+
+                <span>
+                  Doctor
+                </span>
+
                 <strong>
                   {bookingSuccess.doctorName}
                 </strong>
+
               </div>
 
               <div>
-                <span>Date & Time</span>
+
+                <span>
+                  Treatment
+                </span>
+
                 <strong>
-                  {bookingSuccess.date} ·{" "}
+                  {bookingSuccess.treatment}
+                </strong>
+
+              </div>
+
+              <div>
+
+                <span>
+                  Date & Time
+                </span>
+
+                <strong>
+                  {bookingSuccess.date}
+                  {" · "}
                   {bookingSuccess.slot}
                 </strong>
+
+              </div>
+
+              <div>
+
+                <span>
+                  Treatment Amount
+                </span>
+
+                <strong>
+                  ₹
+                  {bookingSuccess.amount}
+                </strong>
+
               </div>
 
             </div>
@@ -1641,7 +2723,9 @@ function Appointment() {
               <button
                 className="pdf-btn"
                 onClick={() =>
-                  generatePDF(bookingSuccess)
+                  generatePDF(
+                    bookingSuccess
+                  )
                 }
               >
                 Generate PDF
@@ -1650,7 +2734,9 @@ function Appointment() {
               <button
                 className="print-btn"
                 onClick={() =>
-                  printAppointment(bookingSuccess)
+                  printAppointment(
+                    bookingSuccess
+                  )
                 }
               >
                 Print Slip

@@ -1,3 +1,29 @@
+/* =========================================================
+   PUNAR AXIS THERAPY
+   PREMIUM APPOINTMENT UI
+   ========================================================= */
+
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Manrope:wght@500;600;700;800&display=swap");
+
+:root {
+  --primary: #0f6b5b;
+  --primary-dark: #084c41;
+  --primary-light: #eaf7f3;
+  --accent: #c99a3d;
+  --text: #17312c;
+  --muted: #70817d;
+  --border: #dce8e4;
+  --bg: #f4f8f6;
+  --white: #ffffff;
+  --danger: #c94b4b;
+  --shadow: 0 18px 50px rgba(15, 74, 62, 0.10);
+  --radius: 20px;
+}
+
+/* =========================
+   RESET
+   ========================= */
+
 * {
   box-sizing: border-box;
 }
@@ -8,272 +34,563 @@
   background:
     radial-gradient(
       circle at top right,
-      rgba(75, 151, 132, 0.12),
-      transparent 32%
+      rgba(201, 154, 61, 0.10),
+      transparent 28%
     ),
-    linear-gradient(
-      135deg,
-      #f5faf8,
-      #eef7f4
-    );
-  font-family:
-    Inter,
-    -apple-system,
-    BlinkMacSystemFont,
-    "Segoe UI",
-    sans-serif;
-  color: #173c35;
+    linear-gradient(135deg, #f7faf9 0%, #edf5f2 100%);
+  color: var(--text);
+  font-family: "Inter", sans-serif;
 }
 
-/* HEADER */
+/* =========================
+   HEADER
+   ========================= */
 
 .clinic-header {
   max-width: 1250px;
   margin: 0 auto 28px;
+  padding: 30px 34px;
+  border: 1px solid rgba(255, 255, 255, 0.8);
+  border-radius: 26px;
+  background:
+    linear-gradient(
+      135deg,
+      #0b5d50 0%,
+      #0f7665 55%,
+      #164e45 100%
+    );
+  box-shadow: 0 22px 55px rgba(10, 82, 69, 0.20);
+  color: #fff;
   display: flex;
+  align-items: center;
   justify-content: space-between;
-  align-items: flex-end;
   gap: 25px;
+  position: relative;
+  overflow: hidden;
+}
+
+.clinic-header::before {
+  content: "";
+  position: absolute;
+  width: 280px;
+  height: 280px;
+  border-radius: 50%;
+  right: -100px;
+  top: -130px;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.clinic-header::after {
+  content: "";
+  position: absolute;
+  width: 170px;
+  height: 170px;
+  border-radius: 50%;
+  right: 170px;
+  bottom: -130px;
+  background: rgba(201, 154, 61, 0.13);
 }
 
 .brand-title {
-  color: #267263;
-  font-weight: 800;
-  font-size: 15px;
-  letter-spacing: 0.5px;
-  margin-bottom: 7px;
+  position: relative;
+  z-index: 1;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: #d8eee8;
+  margin-bottom: 8px;
 }
 
 .clinic-header h1 {
+  position: relative;
+  z-index: 1;
   margin: 0;
-  font-size: 32px;
-  color: #183f38;
+  font-family: "Manrope", sans-serif;
+  font-size: clamp(28px, 4vw, 44px);
+  line-height: 1.1;
   font-weight: 800;
+  letter-spacing: -1px;
 }
 
 .clinic-header p {
-  margin: 8px 0 0;
-  color: #72827e;
+  position: relative;
+  z-index: 1;
+  margin: 10px 0 0;
+  color: #dceee9;
   font-size: 14px;
 }
 
 .clinic-date {
-  background: rgba(255, 255, 255, 0.75);
-  border: 1px solid #dceae5;
+  position: relative;
+  z-index: 2;
+  min-width: 220px;
+  padding: 14px 18px;
+  border: 1px solid rgba(255, 255, 255, 0.20);
   border-radius: 14px;
-  padding: 12px 17px;
-  color: #49645e;
+  background: rgba(255, 255, 255, 0.10);
+  backdrop-filter: blur(10px);
+  color: #fff;
   font-size: 13px;
-  box-shadow: 0 8px 25px rgba(28, 83, 72, 0.06);
+  font-weight: 600;
+  text-align: center;
 }
 
-/* GRID */
+/* =========================
+   MAIN GRID
+   ========================= */
 
 .clinic-grid {
+  width: 100%;
   max-width: 1250px;
-  margin: auto;
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
 }
 
-/* CARD */
+/* =========================
+   CARD
+   ========================= */
 
 .clinic-card {
-  background: rgba(255, 255, 255, 0.94);
-  border: 1px solid #deebe7;
-  border-radius: 24px;
-  padding: 30px;
-  box-shadow:
-    0 20px 55px rgba(36, 89, 77, 0.08),
-    0 4px 12px rgba(36, 89, 77, 0.04);
+  background: rgba(255, 255, 255, 0.95);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  overflow: hidden;
 }
+
+.appointment-form-card {
+  padding: 32px;
+}
+
+/* =========================
+   CARD HEADING
+   ========================= */
 
 .card-heading {
   display: flex;
-  justify-content: space-between;
   align-items: flex-start;
-  margin-bottom: 26px;
+  justify-content: space-between;
   gap: 20px;
+  padding-bottom: 25px;
+  margin-bottom: 28px;
+  border-bottom: 1px solid #edf2f0;
 }
 
 .card-heading h2 {
   margin: 0;
-  font-size: 22px;
-  color: #173f37;
+  font-family: "Manrope", sans-serif;
+  font-size: 25px;
+  font-weight: 800;
+  color: var(--text);
 }
 
 .card-heading p {
   margin: 7px 0 0;
-  color: #82918d;
+  color: var(--muted);
   font-size: 13px;
+  line-height: 1.6;
 }
 
 .form-badge {
-  background: #e8f5f0;
-  color: #267263;
-  border-radius: 30px;
-  padding: 8px 13px;
+  flex-shrink: 0;
+  padding: 9px 14px;
+  border-radius: 999px;
+  background: var(--primary-light);
+  color: var(--primary);
+  border: 1px solid #cce8df;
   font-size: 12px;
   font-weight: 700;
 }
 
-/* FORM */
+/* =========================
+   FORM GRID
+   ========================= */
 
 .form-grid {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 20px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 22px;
+}
+
+.form-grid > div,
+.full-field {
+  min-width: 0;
 }
 
 .full-field {
-  margin-top: 20px;
+  margin-top: 22px;
 }
+
+/* =========================
+   LABELS
+   ========================= */
 
 .clinic-card label {
   display: block;
   margin-bottom: 8px;
-  font-size: 13px;
+  color: #29463f;
+  font-size: 12px;
   font-weight: 700;
-  color: #35554e;
+  letter-spacing: 0.2px;
 }
+
+/* =========================
+   INPUTS
+   ========================= */
 
 .clinic-card input,
 .clinic-card select,
 .clinic-card textarea {
   width: 100%;
-  border: 1px solid #d8e6e2;
-  background: #fbfdfc;
-  border-radius: 12px;
-  padding: 13px 14px;
+  border: 1px solid #d7e4df;
   outline: none;
-  color: #29443e;
+  background: #fbfdfc;
+  color: #193a33;
+  border-radius: 13px;
+  padding: 13px 14px;
+  font-family: inherit;
   font-size: 14px;
-  transition: 0.2s ease;
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease,
+    background 0.2s ease,
+    transform 0.2s ease;
+}
+
+.clinic-card input::placeholder,
+.clinic-card textarea::placeholder {
+  color: #a2afab;
+}
+
+.clinic-card input:hover,
+.clinic-card select:hover,
+.clinic-card textarea:hover {
+  background: #fff;
+  border-color: #bfd5ce;
 }
 
 .clinic-card input:focus,
 .clinic-card select:focus,
 .clinic-card textarea:focus {
-  border-color: #4b9b87;
   background: #fff;
-  box-shadow:
-    0 0 0 4px rgba(75, 155, 135, 0.09);
+  border-color: var(--primary);
+  box-shadow: 0 0 0 4px rgba(15, 107, 91, 0.09);
 }
 
 .clinic-card textarea {
-  min-height: 110px;
+  min-height: 120px;
   resize: vertical;
+  line-height: 1.6;
 }
 
-/* SLOTS */
+/* Date input */
+
+.clinic-card input[type="date"] {
+  cursor: pointer;
+}
+
+/* =========================
+   DOCTOR SELECT
+   ========================= */
+
+.full-field select {
+  cursor: pointer;
+}
+
+/* =========================
+   SLOT SECTION
+   ========================= */
 
 .slot-section {
-  margin-top: 22px;
+  margin-top: 25px;
+  padding: 22px;
+  border: 1px solid #dcebe6;
+  border-radius: 18px;
+  background:
+    linear-gradient(
+      135deg,
+      #f7fbf9,
+      #edf7f3
+    );
 }
+
+.slot-section > label {
+  margin-bottom: 15px;
+  font-size: 13px;
+  color: var(--primary-dark);
+}
+
+/* =========================
+   SLOT GRID
+   ========================= */
 
 .slot-grid {
   display: grid;
-  grid-template-columns: repeat(
-    auto-fit,
-    minmax(130px, 1fr)
-  );
+  grid-template-columns: repeat(auto-fill, minmax(125px, 1fr));
   gap: 10px;
 }
 
 .slot {
-  border: 1px solid #d8e7e2;
-  background: #f7fbf9;
-  color: #32685d;
+  min-height: 52px;
+  border: 1px solid #cfe1db;
   border-radius: 12px;
-  padding: 13px 10px;
+  background: #fff;
+  color: #245048;
   cursor: pointer;
+  padding: 8px 10px;
+  font-family: inherit;
+  font-size: 13px;
   font-weight: 700;
-  transition: 0.2s ease;
+  transition:
+    transform 0.18s ease,
+    box-shadow 0.18s ease,
+    border-color 0.18s ease,
+    background 0.18s ease;
 }
 
 .slot:hover:not(:disabled) {
   transform: translateY(-2px);
-  border-color: #56a18e;
-  background: #edf8f4;
+  border-color: var(--primary);
+  box-shadow: 0 8px 20px rgba(15, 107, 91, 0.10);
 }
 
 .slot.selected {
-  background: #267263;
   color: #fff;
-  border-color: #267263;
-  box-shadow:
-    0 8px 20px rgba(38, 114, 99, 0.2);
+  border-color: var(--primary);
+  background: linear-gradient(
+    135deg,
+    #0f6b5b,
+    #0a574b
+  );
+  box-shadow: 0 9px 22px rgba(15, 107, 91, 0.22);
 }
 
-.slot.booked {
-  opacity: 0.45;
+.slot.booked,
+.slot:disabled {
   cursor: not-allowed;
-  text-decoration: line-through;
+  color: #a0aaa7;
+  border-color: #e2e6e5;
+  background: #f1f3f2;
+  opacity: 0.8;
 }
 
 .slot small {
   display: block;
-  margin-top: 4px;
+  margin-top: 3px;
   font-size: 9px;
+  font-weight: 600;
 }
 
-/* BUTTON */
+/* =========================
+   SUBMIT BUTTON
+   ========================= */
 
 .primary-btn {
   width: 100%;
-  border: none;
-  margin-top: 25px;
-  padding: 15px;
-  border-radius: 13px;
+  margin-top: 28px;
+  min-height: 56px;
+  border: 0;
+  border-radius: 15px;
+  cursor: pointer;
+  color: #fff;
   background:
     linear-gradient(
       135deg,
-      #267263,
-      #3f8d7b
+      #0f7665,
+      #084f43
     );
-  color: white;
+  font-family: "Manrope", sans-serif;
   font-size: 15px;
   font-weight: 800;
-  cursor: pointer;
-  box-shadow:
-    0 12px 25px rgba(38, 114, 99, 0.22);
-  transition: 0.2s ease;
+  letter-spacing: 0.2px;
+  box-shadow: 0 14px 28px rgba(10, 91, 76, 0.20);
+  transition:
+    transform 0.18s ease,
+    box-shadow 0.18s ease,
+    filter 0.18s ease;
 }
 
 .primary-btn:hover {
   transform: translateY(-2px);
-  box-shadow:
-    0 16px 30px rgba(38, 114, 99, 0.27);
+  box-shadow: 0 18px 34px rgba(10, 91, 76, 0.25);
+  filter: brightness(1.04);
 }
 
-/* SUCCESS MODAL */
+.primary-btn:active {
+  transform: translateY(0);
+}
+
+/* =========================
+   SUCCESS MODAL
+   ========================= */
 
 .pdf-modal-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(18, 45, 40, 0.48);
-  backdrop-filter: blur(8px);
+  z-index: 99999;
+  padding: 20px;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 20px;
-  z-index: 9999;
+  background: rgba(8, 35, 30, 0.60);
+  backdrop-filter: blur(7px);
+  animation: fadeIn 0.2s ease;
 }
 
 .pdf-success-modal {
-  width: 100%;
-  max-width: 500px;
-  background: white;
-  border-radius: 25px;
+  width: min(520px, 100%);
+  max-height: 92vh;
+  overflow-y: auto;
   padding: 34px;
+  border: 1px solid rgba(255, 255, 255, 0.8);
+  border-radius: 24px;
+  background: #fff;
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.24);
   text-align: center;
-  box-shadow:
-    0 30px 80px rgba(16, 55, 48, 0.25);
-  animation: popup 0.25s ease;
+  animation: modalUp 0.25s ease;
 }
 
-@keyframes popup {
+.success-icon {
+  width: 66px;
+  height: 66px;
+  margin: 0 auto 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: var(--primary-light);
+  color: var(--primary);
+  border: 7px solid #f3faf7;
+  font-size: 28px;
+  font-weight: 800;
+}
+
+.pdf-success-modal h2 {
+  margin: 0;
+  color: var(--text);
+  font-family: "Manrope", sans-serif;
+  font-size: 25px;
+  font-weight: 800;
+}
+
+.pdf-success-modal > p {
+  margin: 8px 0 22px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+/* =========================
+   APPOINTMENT SUMMARY
+   ========================= */
+
+.appointment-summary {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+  margin: 20px 0;
+  text-align: left;
+}
+
+.appointment-summary > div {
+  padding: 14px;
+  border: 1px solid #e2ebe8;
+  border-radius: 13px;
+  background: #f8fbfa;
+}
+
+.appointment-summary span {
+  display: block;
+  margin-bottom: 5px;
+  color: #84938f;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.appointment-summary strong {
+  display: block;
+  color: #20463d;
+  font-size: 13px;
+  word-break: break-word;
+}
+
+/* =========================
+   MODAL BUTTONS
+   ========================= */
+
+.pdf-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.pdf-btn,
+.print-btn,
+.close-success-btn {
+  min-height: 48px;
+  border-radius: 12px;
+  padding: 11px 15px;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 800;
+  transition:
+    transform 0.18s ease,
+    box-shadow 0.18s ease;
+}
+
+.pdf-btn:hover,
+.print-btn:hover,
+.close-success-btn:hover {
+  transform: translateY(-1px);
+}
+
+.pdf-btn {
+  border: 0;
+  background: linear-gradient(
+    135deg,
+    #0f6b5b,
+    #084f43
+  );
+  color: #fff;
+  box-shadow: 0 10px 22px rgba(15, 107, 91, 0.18);
+}
+
+.print-btn {
+  border: 1px solid #cdded8;
+  background: #fff;
+  color: var(--primary-dark);
+}
+
+.close-success-btn {
+  width: 100%;
+  margin-top: 10px;
+  border: 0;
+  background: #f1f5f3;
+  color: #526762;
+}
+
+/* =========================
+   ANIMATIONS
+   ========================= */
+
+@keyframes fadeIn {
   from {
     opacity: 0;
-    transform: translateY(15px) scale(0.98);
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes modalUp {
+  from {
+    opacity: 0;
+    transform: translateY(18px) scale(0.98);
   }
 
   to {
@@ -282,118 +599,182 @@
   }
 }
 
-.success-icon {
-  width: 62px;
-  height: 62px;
-  margin: auto;
-  border-radius: 50%;
-  display: grid;
-  place-items: center;
-  background: #e6f7f0;
-  color: #2e8975;
-  font-size: 30px;
-  font-weight: 800;
-}
+/* =========================
+   TABLET
+   ========================= */
 
-.pdf-success-modal h2 {
-  margin: 18px 0 7px;
-  color: #173f37;
-}
-
-.pdf-success-modal > p {
-  color: #7b8985;
-  font-size: 14px;
-}
-
-.appointment-summary {
-  margin-top: 23px;
-  padding: 18px;
-  border-radius: 15px;
-  background: #f5faf8;
-  text-align: left;
-}
-
-.appointment-summary div {
-  display: flex;
-  justify-content: space-between;
-  gap: 15px;
-  padding: 9px 0;
-  border-bottom: 1px solid #e2ece8;
-}
-
-.appointment-summary div:last-child {
-  border-bottom: none;
-}
-
-.appointment-summary span {
-  color: #82908c;
-  font-size: 12px;
-}
-
-.appointment-summary strong {
-  color: #284c44;
-  font-size: 12px;
-  text-align: right;
-}
-
-.pdf-actions {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 12px;
-  margin-top: 22px;
-}
-
-.pdf-btn,
-.print-btn {
-  border: none;
-  padding: 13px;
-  border-radius: 12px;
-  color: white;
-  font-weight: 800;
-  cursor: pointer;
-}
-
-.pdf-btn {
-  background: #267263;
-}
-
-.print-btn {
-  background: #355d75;
-}
-
-.close-success-btn {
-  margin-top: 13px;
-  width: 100%;
-  border: 1px solid #d9e5e1;
-  background: white;
-  color: #52706a;
-  padding: 12px;
-  border-radius: 12px;
-  cursor: pointer;
-  font-weight: 700;
-}
-
-/* RESPONSIVE */
-
-@media (max-width: 700px) {
+@media (max-width: 900px) {
   .clinic-page {
-    padding: 18px;
+    padding: 22px;
   }
 
   .clinic-header {
+    padding: 26px;
+  }
+
+  .form-grid {
+    gap: 18px;
+  }
+
+  .slot-grid {
+    grid-template-columns: repeat(
+      auto-fill,
+      minmax(110px, 1fr)
+    );
+  }
+}
+
+/* =========================
+   MOBILE
+   ========================= */
+
+@media (max-width: 650px) {
+  .clinic-page {
+    padding: 12px;
+  }
+
+  .clinic-header {
+    margin-bottom: 16px;
+    padding: 22px 18px;
+    border-radius: 20px;
     flex-direction: column;
-    align-items: flex-start;
+    align-items: stretch;
+    gap: 16px;
+  }
+
+  .clinic-header h1 {
+    font-size: 29px;
+  }
+
+  .clinic-header p {
+    font-size: 12px;
+  }
+
+  .clinic-date {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .appointment-form-card {
+    padding: 19px 15px;
+    border-radius: 18px;
+  }
+
+  .card-heading {
+    flex-direction: column;
+    gap: 12px;
+    padding-bottom: 20px;
+    margin-bottom: 22px;
+  }
+
+  .card-heading h2 {
+    font-size: 21px;
   }
 
   .form-grid {
     grid-template-columns: 1fr;
+    gap: 17px;
   }
 
-  .clinic-card {
-    padding: 20px;
+  .full-field {
+    margin-top: 17px;
+  }
+
+  .slot-section {
+    margin-top: 20px;
+    padding: 15px;
+    border-radius: 15px;
+  }
+
+  .slot-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  .slot {
+    min-height: 50px;
+    font-size: 12px;
+  }
+
+  .primary-btn {
+    min-height: 54px;
+  }
+
+  .pdf-modal-overlay {
+    padding: 10px;
+  }
+
+  .pdf-success-modal {
+    padding: 24px 17px;
+    border-radius: 20px;
+  }
+
+  .appointment-summary {
+    grid-template-columns: 1fr;
   }
 
   .pdf-actions {
     grid-template-columns: 1fr;
+  }
+}
+
+/* =========================
+   SMALL MOBILE
+   ========================= */
+
+@media (max-width: 380px) {
+  .clinic-page {
+    padding: 8px;
+  }
+
+  .clinic-header {
+    padding: 19px 15px;
+  }
+
+  .clinic-header h1 {
+    font-size: 25px;
+  }
+
+  .appointment-form-card {
+    padding: 16px 12px;
+  }
+
+  .slot-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .slot {
+    font-size: 11px;
+    padding: 7px 4px;
+  }
+
+  .pdf-success-modal h2 {
+    font-size: 21px;
+  }
+}
+
+/* =========================
+   ACCESSIBILITY
+   ========================= */
+
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 3px solid rgba(15, 107, 91, 0.18);
+  outline-offset: 2px;
+}
+
+/* =========================
+   REDUCED MOTION
+   ========================= */
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
   }
 }

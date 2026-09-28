@@ -1,10 +1,8 @@
-
 import React, { useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
+import { signInManagement } from "../auth";
+import { isFirebaseConfigured } from "../firebase";
 import "./ManagementLogin.css";
-
-const MANAGEMENT_USER = "admin";
-const MANAGEMENT_PASSWORD = "admin123";
 
 function ManagementLogin() {
   const navigate = useNavigate();
@@ -16,10 +14,10 @@ function ManagementLogin() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const from = location.state?.from || "/appointment";
+  const from = location.state?.from || "/management-dashboard";
 
-  const handleLogin = (e) => {
-    e.preventDefault();
+  const handleLogin = async (event) => {
+    event.preventDefault();
     setError("");
 
     if (!userId.trim() || !password.trim()) {
@@ -29,33 +27,26 @@ function ManagementLogin() {
 
     setLoading(true);
 
-    setTimeout(() => {
-      if (
-        userId.trim() === MANAGEMENT_USER &&
-        password === MANAGEMENT_PASSWORD
-      ) {
-        localStorage.setItem(
-          "clinic_management_auth",
-          JSON.stringify({
-            authenticated: true,
-            userId: userId.trim(),
-            loginTime: new Date().toISOString(),
-          })
-        );
-
-        navigate(from, { replace: true });
-      } else {
-        setError("Invalid Login ID or Password.");
-      }
-
+    try {
+      await signInManagement(userId.trim(), password);
+      navigate(from, { replace: true });
+    } catch (loginError) {
+      const message = String(loginError?.message || "");
+      setError(
+        message.includes("auth/invalid-credential") ||
+          message.includes("auth/wrong-password") ||
+          message.includes("auth/user-not-found")
+          ? "Invalid Login ID or Password."
+          : message || "Unable to sign in. Please try again."
+      );
+    } finally {
       setLoading(false);
-    }, 400);
+    }
   };
 
   return (
     <div className="management-login-page">
       <div className="management-login-card">
-
         <div className="management-login-logo">
           <div className="management-logo-icon">P</div>
           <div>
@@ -67,23 +58,19 @@ function ManagementLogin() {
         <div className="management-login-header">
           <div className="lock-icon">🔐</div>
           <h2>Management Login</h2>
-          <p>
-            Authorized clinic staff only. Please login to access
-            management modules.
-          </p>
+          <p>Secure access to clinic management modules and patient records.</p>
         </div>
 
         <form onSubmit={handleLogin} className="management-login-form">
-
           <div className="login-field">
-            <label>Login ID</label>
+            <label>{isFirebaseConfigured ? "Admin Email" : "Login ID"}</label>
             <div className="login-input-wrap">
               <span>👤</span>
               <input
-                type="text"
-                placeholder="Enter Login ID"
+                type={isFirebaseConfigured ? "email" : "text"}
+                placeholder={isFirebaseConfigured ? "admin@example.com" : "Enter Login ID"}
                 value={userId}
-                onChange={(e) => setUserId(e.target.value)}
+                onChange={(event) => setUserId(event.target.value)}
                 autoComplete="username"
               />
             </div>
@@ -97,31 +84,22 @@ function ManagementLogin() {
                 type={showPassword ? "text" : "password"}
                 placeholder="Enter Password"
                 value={password}
-                onChange={(e) => setPassword(e.target.value)}
+                onChange={(event) => setPassword(event.target.value)}
                 autoComplete="current-password"
               />
-
               <button
                 type="button"
                 className="password-toggle"
-                onClick={() => setShowPassword(!showPassword)}
+                onClick={() => setShowPassword((value) => !value)}
               >
                 {showPassword ? "Hide" : "Show"}
               </button>
             </div>
           </div>
 
-          {error && (
-            <div className="management-login-error">
-              ⚠️ {error}
-            </div>
-          )}
+          {error && <div className="management-login-error">⚠️ {error}</div>}
 
-          <button
-            type="submit"
-            className="management-login-btn"
-            disabled={loading}
-          >
+          <button type="submit" className="management-login-btn" disabled={loading}>
             {loading ? "Signing In..." : "Login to Management"}
             {!loading && <span>→</span>}
           </button>
@@ -129,20 +107,17 @@ function ManagementLogin() {
 
         <div className="management-login-footer">
           <span>🔒</span>
-          <p>Authorized access only</p>
+          <p>
+            {isFirebaseConfigured
+              ? "Protected by Firebase Authentication"
+              : "Local fallback mode — configure Firebase for production access"}
+          </p>
         </div>
 
-        <button
-          className="back-home-btn"
-          onClick={() => navigate("/")}
-        >
-          ← Back to Website
-        </button>
-
+        <button className="back-home-btn" onClick={() => navigate("/")}>← Back to Website</button>
       </div>
     </div>
   );
 }
 
 export default ManagementLogin;
-

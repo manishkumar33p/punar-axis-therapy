@@ -1,0 +1,25 @@
+PUNAR AXIS THERAPY — FINAL FIREBASE START
+
+STEP 1 — LOCAL PROJECT
+1. Extract this ZIP.
+2. Open the extracted folder in VS Code.
+3. Run: npm install
+4. Run: npm start
+5. The Firebase config is already present in .env.local for project punar-axis-clinic.
+
+STEP 2 — FIREBASE CONSOLE
+1. Firebase Console → Authentication → Sign-in method → Email/Password → Enable.
+2. Authentication → Users → Add user → create your clinic admin email/password.
+3. Firestore Database → Create database.
+4. Firestore → Rules → paste the included firestore.rules and Publish.
+5. Open the app → /management-login → login with the Firebase admin user.
+
+DATA FLOW
+Management modules use the existing UI/state layer and the cloud bridge mirrors these datasets to Firestore:
+apppointments, patients, patientTreatments, clients, employees, employeeAttendance, inventoryItems, inventoryHistory, clientNotes.
+
+IMPORTANT
+- Firebase Web App config is safe to ship in a browser app; never add a service-account/private-key JSON.
+- .env.local is included for this project but should not be committed to GitHub.
+- Existing browser data is migrated when the cloud bridge is authenticated and the corresponding Firestore collection is empty.
+- This ZIP does not contain node_modules; npm install is required once.

@@ -97,7 +97,7 @@ import Appointment from "./Appointment/Appointment";
 import AppointmentDetails from "./Appointment/AppointmentDetails";
 import EmployeeAttendance from "./EmployeeAttendance/EmployeeAttendance";
 import Inventory from "./Inventory/Inventory";
-import ClientManagement from "./ClientManagement/ClientManagement";
+import OwnerDashboard from "./OwnerDashboard/OwnerDashboard";
 import PatientManagement from "./PatientManagement/PatientManagement";
 
 import ManagementLogin from "./ManagementLogin/ManagementLogin";
@@ -106,6 +106,7 @@ import ProtectedRoute from "./ProtectedRoute";
 import PatientLogin from "./PatientLogin/PatientLogin";
 import PatientDashboard from "./PatientDashboard/PatientDashboard";
 import PatientProtectedRoute from "./PatientProtectedRoute";
+import ManagementDashboard from "./ManagementDashboard/ManagementDashboard";
 
 
 const router = createBrowserRouter([
@@ -128,6 +129,15 @@ const router = createBrowserRouter([
   // =================================
   // PROTECTED MANAGEMENT
   // =================================
+  {
+    path: "/management-dashboard",
+    element: (
+      <ProtectedRoute>
+        <ManagementDashboard />
+      </ProtectedRoute>
+    ),
+  },
+
   {
     path: "/appointment",
     element: (
@@ -174,10 +184,10 @@ const router = createBrowserRouter([
   },
 
   {
-    path: "/client-management",
+    path: "/owner-dashboard",
     element: (
       <ProtectedRoute>
-        <ClientManagement />
+        <OwnerDashboard />
       </ProtectedRoute>
     ),
   },

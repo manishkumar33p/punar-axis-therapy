@@ -1,264 +1,409 @@
-
 import React, { useState } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
-import "./PatientLogin.css";
+import { useNavigate } from "react-router-dom";
+import { signInPatient } from "../auth";
 
 function PatientLogin() {
   const navigate = useNavigate();
-  const location = useLocation();
 
-  const [loginValue, setLoginValue] = useState("");
+  const [patientId, setPatientId] = useState("PAT-0002");
   const [password, setPassword] = useState("");
-  const [showPassword, setShowPassword] = useState(false);
-  const [error, setError] = useState("");
+
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
 
-  const from = location.state?.from || "/patient-dashboard";
+  const handlePatientIdChange = (e) => {
+    const value = e.target.value
+      .toUpperCase()
+      .trimStart();
 
-  const getPatients = () => {
-    try {
-      const data = localStorage.getItem("clinic_patients");
-      return data ? JSON.parse(data) : [];
-    } catch (error) {
-      return [];
+    setPatientId(value);
+
+    if (error) {
+      setError("");
     }
   };
 
-  const handleLogin = (event) => {
-    event.preventDefault();
+  const handlePasswordChange = (e) => {
+    const value = e.target.value
+      .replace(/\D/g, "")
+      .slice(0, 4);
 
-    setError("");
+    setPassword(value);
 
-    if (!loginValue.trim() || !password.trim()) {
-      setError("Please enter Patient ID / Mobile Number and Password.");
+    if (error) {
+      setError("");
+    }
+  };
+
+  const handleLogin = async () => {
+    if (loading) {
       return;
     }
 
-    setLoading(true);
+    setError("");
 
-    setTimeout(() => {
-      const patients = getPatients();
+    const cleanPatientId = patientId
+      .trim()
+      .toUpperCase();
 
-      const enteredLogin = loginValue.trim().toLowerCase();
+    const cleanPassword = password
+      .replace(/\D/g, "");
 
-      const patient = patients.find((item) => {
-        const patientId = String(item.patientId || item.id || "").toLowerCase();
-        const mobile = String(item.mobile || "").replace(/\D/g, "");
-        const enteredMobile = enteredLogin.replace(/\D/g, "");
+    if (!cleanPatientId) {
+      setError("Please enter Patient ID.");
+      return;
+    }
 
-        return (
-          patientId === enteredLogin ||
-          (mobile && mobile === enteredMobile)
-        );
-      });
+    if (!cleanPatientId.startsWith("PAT-")) {
+      setError(
+        "Invalid Patient ID. Example: PAT-0002."
+      );
+      return;
+    }
 
-      if (!patient) {
-        setError("Patient record not found.");
-        setLoading(false);
-        return;
-      }
+    if (!cleanPassword) {
+      setError("Please enter password.");
+      return;
+    }
 
-      /*
-        Password priority:
-        1. patient.password
-        2. patient.loginPassword
-        3. default 123456 for existing records
-      */
-      const patientPassword =
-        patient.password ||
-        patient.loginPassword ||
-        "123456";
+    if (cleanPassword.length !== 4) {
+      setError(
+        "Password must be the last 4 digits of your registered mobile number."
+      );
+      return;
+    }
 
-      if (password !== String(patientPassword)) {
-        setError("Incorrect password. Please try again.");
-        setLoading(false);
-        return;
-      }
+    try {
+      setLoading(true);
 
-      const session = {
-        authenticated: true,
-        patientId: patient.patientId || patient.id,
-        loginTime: new Date().toISOString(),
-      };
+      console.log("PATIENT LOGIN STARTED");
 
-      localStorage.setItem(
-        "clinic_patient_auth",
-        JSON.stringify(session)
+      const session = await signInPatient(
+        cleanPatientId,
+        cleanPassword
       );
 
-      navigate(from, { replace: true });
+      console.log(
+        "PATIENT LOGIN RESPONSE:",
+        session
+      );
+
+      if (
+        session &&
+        session.loggedIn === true &&
+        session.patient &&
+        session.patient.patientId
+      ) {
+        console.log(
+          "PATIENT SESSION SAVED:",
+          localStorage.getItem(
+            "patientSession"
+          )
+        );
+
+        console.log(
+          "NAVIGATING TO PATIENT DASHBOARD"
+        );
+
+        navigate(
+          "/patient-dashboard",
+          {
+            replace: true,
+          }
+        );
+
+        return;
+      }
+
+      setError(
+        "Login failed. Please try again."
+      );
+
+    } catch (err) {
+      console.error(
+        "PATIENT LOGIN ERROR:",
+        err
+      );
+
+      setError(
+        err?.message ||
+        "Incorrect Patient ID or password."
+      );
+
+    } finally {
       setLoading(false);
-    }, 400);
+    }
+  };
+
+  const handleKeyDown = (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      handleLogin();
+    }
   };
 
   return (
-    <div className="patient-login-page">
+    <div style={styles.page}>
+      <div style={styles.card}>
 
-      <div className="patient-login-left">
-        <div className="patient-login-brand">
-          <div className="patient-brand-icon">P</div>
+        <div style={styles.header}>
 
-          <div>
-            <h1>PUNAR AXIS</h1>
-            <span>THERAPY</span>
+          <div style={styles.icon}>
+            🏥
           </div>
-        </div>
 
-        <div className="patient-login-hero">
-          <span className="patient-small-label">
-            PATIENT PORTAL
-          </span>
-
-          <h2>
-            Your complete
-            <br />
-            <strong>health journey</strong>
-            <br />
-            in one place.
+          <h2 style={styles.title}>
+            Patient Login
           </h2>
 
-          <p>
-            View your appointments, treatment history, progress,
-            bills, reports and future treatment plan from your
-            personal patient dashboard.
+          <p style={styles.subtitle}>
+            Access your patient portal
           </p>
 
-          <div className="patient-login-features">
-            <div>
-              <span>✓</span>
-              <p>Appointments & schedule</p>
-            </div>
-
-            <div>
-              <span>✓</span>
-              <p>Treatment & medical history</p>
-            </div>
-
-            <div>
-              <span>✓</span>
-              <p>Bills, reports & documents</p>
-            </div>
-          </div>
         </div>
-      </div>
 
-      <div className="patient-login-right">
+        <div style={styles.form}>
 
-        <div className="patient-login-card">
+          {/* PATIENT ID */}
+
+          <div style={styles.field}>
+
+            <label style={styles.label}>
+              Patient ID
+            </label>
+
+            <input
+              type="text"
+              value={patientId}
+              onChange={handlePatientIdChange}
+              onKeyDown={handleKeyDown}
+              placeholder="PAT-0002"
+              autoComplete="username"
+              disabled={loading}
+              style={styles.input}
+            />
+
+          </div>
+
+
+          {/* PASSWORD */}
+
+          <div style={styles.field}>
+
+            <label style={styles.label}>
+              Password
+            </label>
+
+            <input
+              type="password"
+              value={password}
+              onChange={handlePasswordChange}
+              onKeyDown={handleKeyDown}
+              placeholder="Last 4 digits of mobile"
+              inputMode="numeric"
+              maxLength={4}
+              autoComplete="current-password"
+              disabled={loading}
+              style={styles.input}
+            />
+
+            <small style={styles.helpText}>
+              Use the last 4 digits of your
+              registered mobile number.
+            </small>
+
+          </div>
+
+
+          {/* ERROR */}
+
+          {error && (
+            <div style={styles.error}>
+              {error}
+            </div>
+          )}
+
+
+          {/* LOGIN BUTTON */}
 
           <button
             type="button"
-            className="patient-back-home"
-            onClick={() => navigate("/")}
+            onClick={handleLogin}
+            disabled={loading}
+            style={{
+              ...styles.button,
+              ...(loading
+                ? styles.buttonDisabled
+                : {}),
+            }}
           >
-            ← Back to website
+            {loading
+              ? "Logging in..."
+              : "Login"}
           </button>
 
-          <div className="patient-login-icon">
-            👤
+        </div>
+
+
+        {/* EXAMPLE */}
+
+        <div style={styles.example}>
+
+          <strong>
+            Example
+          </strong>
+
+          <div>
+            Patient ID:{" "}
+            <b>PAT-0002</b>
           </div>
 
-          <div className="patient-login-heading">
-            <span>WELCOME BACK</span>
-            <h2>Patient Login</h2>
-            <p>
-              Login to access your personal health dashboard.
-            </p>
-          </div>
-
-          <form
-            className="patient-login-form"
-            onSubmit={handleLogin}
-          >
-
-            <div className="patient-login-field">
-              <label>Patient ID / Mobile Number</label>
-
-              <div className="patient-login-input">
-                <span>👤</span>
-
-                <input
-                  type="text"
-                  placeholder="PAT-0001 or mobile number"
-                  value={loginValue}
-                  onChange={(event) =>
-                    setLoginValue(event.target.value)
-                  }
-                  autoComplete="username"
-                />
-              </div>
-            </div>
-
-            <div className="patient-login-field">
-              <label>Password</label>
-
-              <div className="patient-login-input">
-                <span>🔒</span>
-
-                <input
-                  type={showPassword ? "text" : "password"}
-                  placeholder="Enter your password"
-                  value={password}
-                  onChange={(event) =>
-                    setPassword(event.target.value)
-                  }
-                  autoComplete="current-password"
-                />
-
-                <button
-                  type="button"
-                  className="patient-password-toggle"
-                  onClick={() =>
-                    setShowPassword((value) => !value)
-                  }
-                >
-                  {showPassword ? "Hide" : "Show"}
-                </button>
-              </div>
-            </div>
-
-            {error && (
-              <div className="patient-login-error">
-                ⚠️ {error}
-              </div>
-            )}
-
-            <button
-              type="submit"
-              className="patient-login-submit"
-              disabled={loading}
-            >
-              {loading ? "Signing In..." : "Login to Patient Portal"}
-
-              {!loading && <span>→</span>}
-            </button>
-
-          </form>
-
-          <div className="patient-login-help">
-            <div>🔐</div>
-
-            <div>
-              <strong>Patient access</strong>
-              <p>
-                Use the Patient ID provided by the clinic.
-                Existing patients without a password can use
-                the temporary password <b>123456</b>.
-              </p>
-            </div>
-          </div>
-
-          <div className="patient-login-secure">
-            🔒 Your patient portal is for authorized access only.
+          <div>
+            Password:{" "}
+            <b>6789</b>
           </div>
 
         </div>
 
       </div>
-
     </div>
   );
 }
 
-export default PatientLogin;
 
+/* =========================================================
+   STYLES
+========================================================= */
+
+const styles = {
+
+  page: {
+    minHeight: "100vh",
+    width: "100%",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    background: "#f5f7fb",
+    padding: "20px",
+    boxSizing: "border-box",
+  },
+
+  card: {
+    width: "100%",
+    maxWidth: "420px",
+    background: "#ffffff",
+    borderRadius: "16px",
+    padding: "32px",
+    boxSizing: "border-box",
+    boxShadow:
+      "0 10px 35px rgba(0,0,0,0.10)",
+  },
+
+  header: {
+    textAlign: "center",
+    marginBottom: "28px",
+  },
+
+  icon: {
+    width: "60px",
+    height: "60px",
+    borderRadius: "50%",
+    background: "#eef4ff",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    margin: "0 auto 14px",
+    fontSize: "28px",
+  },
+
+  title: {
+    margin: "0",
+    fontSize: "26px",
+    fontWeight: "700",
+    color: "#172033",
+  },
+
+  subtitle: {
+    margin: "8px 0 0",
+    color: "#6b7280",
+    fontSize: "14px",
+  },
+
+  form: {
+    width: "100%",
+  },
+
+  field: {
+    marginBottom: "20px",
+  },
+
+  label: {
+    display: "block",
+    marginBottom: "8px",
+    fontSize: "14px",
+    fontWeight: "600",
+    color: "#273142",
+  },
+
+  input: {
+    width: "100%",
+    height: "48px",
+    padding: "0 14px",
+    boxSizing: "border-box",
+    border: "1px solid #d7dce5",
+    borderRadius: "9px",
+    outline: "none",
+    fontSize: "15px",
+    background: "#ffffff",
+  },
+
+  helpText: {
+    display: "block",
+    marginTop: "7px",
+    color: "#737b8c",
+    fontSize: "12px",
+    lineHeight: "1.4",
+  },
+
+  error: {
+    width: "100%",
+    boxSizing: "border-box",
+    padding: "11px 12px",
+    marginBottom: "16px",
+    borderRadius: "8px",
+    background: "#fff1f1",
+    border: "1px solid #ffcaca",
+    color: "#c62828",
+    fontSize: "13px",
+    lineHeight: "1.4",
+  },
+
+  button: {
+    width: "100%",
+    height: "48px",
+    border: "none",
+    borderRadius: "9px",
+    background: "#2563eb",
+    color: "#ffffff",
+    fontSize: "15px",
+    fontWeight: "600",
+    cursor: "pointer",
+  },
+
+  buttonDisabled: {
+    opacity: 0.65,
+    cursor: "not-allowed",
+  },
+
+  example: {
+    marginTop: "24px",
+    padding: "14px",
+    borderRadius: "9px",
+    background: "#f7f8fa",
+    color: "#626b7a",
+    fontSize: "12px",
+    lineHeight: "1.7",
+  },
+};
+
+export default PatientLogin;

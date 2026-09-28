@@ -1,0 +1,51 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return signedIn() && exists(
+        /databases/$(database)/documents/admins/$(request.auth.uid)
+      );
+    }
+
+    function isOwnPatient() {
+      return signedIn() && resource.data.authUid == request.auth.uid;
+    }
+
+
+    // The first Firebase Authentication user can create its own admin record.
+    // Create only after the user has been manually added to Firebase Auth.
+    match /admins/{uid} {
+      allow create: if signedIn() && request.auth.uid == uid;
+      allow read, update: if isAdmin() && request.auth.uid == uid;
+    }
+
+    // Management users can manage all clinic datasets.
+    match /{document=**} {
+      allow read, write: if isAdmin();
+    }
+
+    // A patient can read only their own patient profile.
+    match /patients/{patientId} {
+      allow get: if isOwnPatient();
+    }
+
+    // Patient treatment records are readable only when the record belongs to
+    // the signed-in patient's ID. Managers retain full access through isAdmin.
+    match /patientTreatments/{treatmentId} {
+      allow read: if signedIn() && resource.data.patientAuthUid == request.auth.uid;
+    }
+
+    // The login index contains only the minimum mapping needed to resolve a
+    // Patient ID/mobile to a Firebase Auth email. Passwords are never stored.
+    // This is intentionally a point-read design rather than an unrestricted
+    // collection listing.
+    match /patientLoginIndex/{loginKey} {
+      allow get: if true;
+    }
+  }
+}

@@ -1,9 +1,24 @@
+
+
+
 import React, { useEffect, useMemo, useState } from "react";
+import { provisionPatientPortal } from "../auth";
+import { db } from "../firebase";
+
+import {
+  collection,
+  doc,
+  onSnapshot,
+  runTransaction,
+  setDoc,
+  writeBatch,
+} from "firebase/firestore";
+
 import "./PatientManagement.css";
 
-const PATIENTS_KEY = "clinic_patients";
-const TREATMENTS_KEY = "clinic_patient_treatments";
-const APPOINTMENTS_KEY = "clinic_appointments";
+const PATIENTS_COLLECTION = "patients";
+const TREATMENTS_COLLECTION = "patientTreatments";
+const APPOINTMENTS_COLLECTION = "appointments";
 
 const emptyPatient = {
   name: "",
@@ -22,7 +37,11 @@ const emptyPatient = {
   emergencyName: "",
   emergencyMobile: "",
   emergencyRelation: "",
-  registrationDate: new Date().toISOString().split("T")[0],
+
+  registrationDate: new Date()
+    .toISOString()
+    .split("T")[0],
+
   diagnosis: "",
   previousTreatment: "",
   currentTreatment: "",
@@ -30,17 +49,24 @@ const emptyPatient = {
   assignedDoctor: "",
   firstVisitDate: "",
   nextFollowUpDate: "",
+
   status: "Active",
+
   allergies: "",
   medications: "",
   medicalHistory: "",
+
   sessionsPlanned: "",
   sessionsCompleted: "",
+
   notes: "",
 };
 
 const emptyTreatment = {
-  date: new Date().toISOString().split("T")[0],
+  date: new Date()
+    .toISOString()
+    .split("T")[0],
+
   treatment: "",
   doctor: "",
   sessionNumber: "",
@@ -49,82 +75,120 @@ const emptyTreatment = {
 };
 
 const doctors = [
-  "Dr. Rahul Sharma",
-  "Dr. Neha Verma",
+  "Dr. Vikash",
+  "Dr. Sehnaaz",
+  "Dr. Ankush"
 ];
 
 const treatmentOptions = [
   "Physiotherapy",
-  "Rehabilitation",
-  "Pain Management",
-  "Exercise Therapy",
-  "Manual Therapy",
-  "Electrotherapy",
-  "Dry Needling",
+  "Integrated Physiotherapy",
+  "Ayurvedic",
+  "Integrated Ayurvedic",
+ ,
+  "Sports Rehab",
+  
   "Other",
 ];
 
-function generatePatientId(patients) {
-  let number = patients.length + 1;
-
-  const existingNumbers = patients
-    .map((patient) => {
-      const match = String(patient.patientId || "").match(/PAT-(\d+)/);
-      return match ? Number(match[1]) : 0;
-    })
-    .filter(Boolean);
-
-  if (existingNumbers.length) {
-    number = Math.max(...existingNumbers) + 1;
-  }
-
-  return `PAT-${String(number).padStart(4, "0")}`;
-}
+/* =========================================================
+   HELPERS
+========================================================= */
 
 function normalizeDate(date) {
   if (!date) return "";
+
+  if (
+    date &&
+    typeof date === "object" &&
+    typeof date.toDate === "function"
+  ) {
+    try {
+      return date.toDate().toISOString().split("T")[0];
+    } catch (error) {
+      return "";
+    }
+  }
+
   return String(date).split("T")[0];
 }
 
-function isFutureDate(date) {
-  const today = new Date().toISOString().split("T")[0];
-  return normalizeDate(date) >= today;
+function getToday() {
+  return new Date().toISOString().split("T")[0];
 }
 
-function isPastDate(date) {
-  const today = new Date().toISOString().split("T")[0];
-  return normalizeDate(date) < today;
+function isFutureDate(date) {
+  const normalized = normalizeDate(date);
+  const today = getToday();
+
+  return normalized >= today;
 }
 
 function formatDate(date) {
-  if (!date) return "-";
+  const normalized = normalizeDate(date);
 
-  const parts = String(date).split("-");
-  if (parts.length !== 3) return date;
+  if (!normalized) return "-";
+
+  const parts = normalized.split("-");
+
+  if (parts.length !== 3) {
+    return normalized;
+  }
 
   return `${parts[2]}-${parts[1]}-${parts[0]}`;
 }
 
-function getAppointmentPatientMatch(patient, appointment) {
-  const patientMobile = String(patient.mobile || "").replace(/\D/g, "");
-  const appointmentMobile = String(appointment.phone || "").replace(
-    /\D/g,
-    ""
+function cleanFirestoreData(data) {
+  const result = {};
+
+  Object.entries(data || {}).forEach(
+    ([key, value]) => {
+      if (value !== undefined) {
+        result[key] = value;
+      }
+    }
   );
 
-  const patientEmail = String(patient.email || "")
+  return result;
+}
+
+/* =========================================================
+   PATIENT MATCHING
+========================================================= */
+
+function getAppointmentPatientMatch(
+  patient,
+  appointment
+) {
+  const patientMobile = String(
+    patient.mobile || ""
+  ).replace(/\D/g, "");
+
+  const appointmentMobile = String(
+    appointment.phone || ""
+  ).replace(/\D/g, "");
+
+  const patientEmail = String(
+    patient.email || ""
+  )
     .trim()
     .toLowerCase();
 
-  const appointmentEmail = String(appointment.email || "")
+  const appointmentEmail = String(
+    appointment.email || ""
+  )
     .trim()
     .toLowerCase();
 
-  const patientName = String(patient.name || "")
+  const patientName = String(
+    patient.name || ""
+  )
     .trim()
     .toLowerCase();
 
-  const appointmentName = String(appointment.name || "")
+  const appointmentName = String(
+    appointment.name || ""
+  )
     .trim()
     .toLowerCase();
 
@@ -155,46 +219,155 @@ function getAppointmentPatientMatch(patient, appointment) {
   return false;
 }
 
-function AppointmentsForPatient({ patient, appointments }) {
-  const patientAppointments = appointments
-    .filter((appointment) =>
-      getAppointmentPatientMatch(patient, appointment)
-    )
-    .sort((a, b) =>
-      String(a.date || "").localeCompare(String(b.date || ""))
+/* =========================================================
+   SAFE PATIENT ID GENERATOR
+========================================================= */
+
+async function createNextPatientId(
+  currentPatients = []
+) {
+  const counterRef = doc(
+    db,
+    "counters",
+    "patients"
+  );
+
+  const maxExistingNumber =
+    currentPatients.reduce(
+      (max, patient) => {
+        const match = String(
+          patient.patientId || ""
+        ).match(/^PAT-(\d+)$/);
+
+        if (!match) return max;
+
+        return Math.max(
+          max,
+          Number(match[1])
+        );
+      },
+      0
     );
+
+  const patientId =
+    await runTransaction(
+      db,
+      async (transaction) => {
+        const counterSnapshot =
+          await transaction.get(
+            counterRef
+          );
+
+        const storedNextNumber =
+          counterSnapshot.exists()
+            ? Number(
+                counterSnapshot.data()
+                  ?.nextNumber || 1
+              )
+            : 1;
+
+        const nextNumber = Math.max(
+          storedNextNumber,
+          maxExistingNumber + 1,
+          1
+        );
+
+        transaction.set(
+          counterRef,
+          {
+            nextNumber:
+              nextNumber + 1,
+
+            updatedAt:
+              new Date().toISOString(),
+          },
+          {
+            merge: true,
+          }
+        );
+
+        return `PAT-${String(
+          nextNumber
+        ).padStart(4, "0")}`;
+      }
+    );
+
+  return patientId;
+}
+
+/* =========================================================
+   APPOINTMENTS COMPONENT
+========================================================= */
+
+function AppointmentsForPatient({
+  patient,
+  appointments,
+}) {
+  const patientAppointments =
+    appointments
+      .filter((appointment) =>
+        getAppointmentPatientMatch(
+          patient,
+          appointment
+        )
+      )
+      .sort((a, b) =>
+        String(a.date || "").localeCompare(
+          String(b.date || "")
+        )
+      );
 
   if (!patientAppointments.length) {
     return (
       <div className="pm-empty">
-        <div className="pm-empty-icon">📅</div>
+        <div className="pm-empty-icon">
+          📅
+        </div>
+
         <h3>No appointment history</h3>
+
         <p>
-          This patient's appointments will automatically appear here when
-          they are booked from the Appointment module.
+          This patient's appointments will
+          automatically appear here when they are
+          booked from the Appointment module.
         </p>
       </div>
     );
   }
 
-  const today = new Date().toISOString().split("T")[0];
+  const today = getToday();
 
-  const upcoming = patientAppointments.filter(
-    (item) => normalizeDate(item.date) >= today
-  );
+  const upcoming =
+    patientAppointments.filter(
+      (item) =>
+        normalizeDate(item.date) >= today
+    );
 
-  const previous = patientAppointments.filter(
-    (item) => normalizeDate(item.date) < today
-  );
+  const previous =
+    patientAppointments.filter(
+      (item) =>
+        normalizeDate(item.date) < today
+    );
 
   return (
     <div className="pm-appointment-section">
+
+      {/* UPCOMING */}
       <div className="pm-section-heading">
         <div>
-          <h3>Future Appointments</h3>
-          <p>Upcoming appointments for this patient</p>
+          <h3>
+            Future Appointments
+          </h3>
+
+          <p>
+            Upcoming appointments for this
+            patient
+          </p>
         </div>
-        <span className="pm-count-badge">{upcoming.length}</span>
+
+        <span className="pm-count-badge">
+          {upcoming.length}
+        </span>
       </div>
 
       {upcoming.length ? (
@@ -209,39 +382,81 @@ function AppointmentsForPatient({ patient, appointments }) {
                 <th>Status</th>
               </tr>
             </thead>
+
             <tbody>
-              {upcoming.map((appointment) => (
-                <tr key={appointment.id}>
-                  <td>{formatDate(appointment.date)}</td>
-                  <td>{appointment.slot || "-"}</td>
-                  <td>{appointment.treatment || "-"}</td>
-                  <td>{appointment.doctorName || "-"}</td>
-                  <td>
-                    <span
-                      className={`pm-status ${
-                        String(appointment.status || "")
+              {upcoming.map(
+                (appointment) => (
+                  <tr
+                    key={
+                      appointment.id ||
+                      appointment.firestoreId
+                    }
+                  >
+                    <td>
+                      {formatDate(
+                        appointment.date
+                      )}
+                    </td>
+
+                    <td>
+                      {appointment.slot ||
+                        "-"}
+                    </td>
+
+                    <td>
+                      {appointment.treatment ||
+                        "-"}
+                    </td>
+
+                    <td>
+                      {appointment.doctorName ||
+                        "-"}
+                    </td>
+
+                    <td>
+                      <span
+                        className={`pm-status ${String(
+                          appointment.status ||
+                            "Confirmed"
+                        )
                           .toLowerCase()
-                          .replace(/\s+/g, "-")
-                      }`}
-                    >
-                      {appointment.status || "Confirmed"}
-                    </span>
-                  </td>
-                </tr>
-              ))}
+                          .replace(
+                            /\s+/g,
+                            "-"
+                          )}`}
+                      >
+                        {appointment.status ||
+                          "Confirmed"}
+                      </span>
+                    </td>
+                  </tr>
+                )
+              )}
             </tbody>
           </table>
         </div>
       ) : (
-        <div className="pm-mini-empty">No future appointment found.</div>
+        <div className="pm-mini-empty">
+          No future appointment found.
+        </div>
       )}
 
+      {/* PREVIOUS */}
       <div className="pm-section-heading pm-history-heading">
         <div>
-          <h3>Previous Appointments</h3>
-          <p>Completed / previous appointment records</p>
+          <h3>
+            Previous Appointments
+          </h3>
+
+          <p>
+            Completed / previous appointment
+            records
+          </p>
         </div>
-        <span className="pm-count-badge">{previous.length}</span>
+
+        <span className="pm-count-badge">
+          {previous.length}
+        </span>
       </div>
 
       {previous.length ? (
@@ -256,134 +471,319 @@ function AppointmentsForPatient({ patient, appointments }) {
                 <th>Status</th>
               </tr>
             </thead>
+
             <tbody>
-              {[...previous].reverse().map((appointment) => (
-                <tr key={appointment.id}>
-                  <td>{formatDate(appointment.date)}</td>
-                  <td>{appointment.slot || "-"}</td>
-                  <td>{appointment.treatment || "-"}</td>
-                  <td>{appointment.doctorName || "-"}</td>
-                  <td>
-                    <span className="pm-status completed">
-                      {appointment.status || "Completed"}
-                    </span>
-                  </td>
-                </tr>
-              ))}
+              {[...previous]
+                .reverse()
+                .map(
+                  (appointment) => (
+                    <tr
+                      key={
+                        appointment.id ||
+                        appointment.firestoreId
+                      }
+                    >
+                      <td>
+                        {formatDate(
+                          appointment.date
+                        )}
+                      </td>
+
+                      <td>
+                        {appointment.slot ||
+                          "-"}
+                      </td>
+
+                      <td>
+                        {appointment.treatment ||
+                          "-"}
+                      </td>
+
+                      <td>
+                        {appointment.doctorName ||
+                          "-"}
+                      </td>
+
+                      <td>
+                        <span className="pm-status completed">
+                          {appointment.status ||
+                            "Completed"}
+                        </span>
+                      </td>
+                    </tr>
+                  )
+                )}
             </tbody>
           </table>
         </div>
       ) : (
-        <div className="pm-mini-empty">No previous appointment found.</div>
+        <div className="pm-mini-empty">
+          No previous appointment found.
+        </div>
       )}
     </div>
   );
 }
 
+/* =========================================================
+   MAIN COMPONENT
+========================================================= */
+
 export default function PatientManagement() {
-  const [patients, setPatients] = useState([]);
-  const [treatments, setTreatments] = useState([]);
-  const [appointments, setAppointments] = useState([]);
+  const [patients, setPatients] =
+    useState([]);
 
-  const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState("All");
+  const [treatments, setTreatments] =
+    useState([]);
 
-  const [showPatientModal, setShowPatientModal] = useState(false);
-  const [showTreatmentModal, setShowTreatmentModal] = useState(false);
-  const [showProfile, setShowProfile] = useState(false);
+  const [appointments, setAppointments] =
+    useState([]);
 
-  const [editingPatient, setEditingPatient] = useState(null);
-  const [selectedPatient, setSelectedPatient] = useState(null);
+  const [search, setSearch] =
+    useState("");
 
-  const [patientForm, setPatientForm] = useState(emptyPatient);
-  const [treatmentForm, setTreatmentForm] = useState(emptyTreatment);
+  const [statusFilter, setStatusFilter] =
+    useState("All");
 
-  const [profileTab, setProfileTab] = useState("Overview");
+  const [showPatientModal, setShowPatientModal] =
+    useState(false);
+
+  const [showTreatmentModal, setShowTreatmentModal] =
+    useState(false);
+
+  const [showProfile, setShowProfile] =
+    useState(false);
+
+  const [editingPatient, setEditingPatient] =
+    useState(null);
+
+  const [selectedPatient, setSelectedPatient] =
+    useState(null);
+
+  const [patientForm, setPatientForm] =
+    useState(emptyPatient);
+
+  const [treatmentForm, setTreatmentForm] =
+    useState(emptyTreatment);
+
+  const [profileTab, setProfileTab] =
+    useState("Overview");
+
+  const [saving, setSaving] =
+    useState(false);
+
+  const [loading, setLoading] =
+    useState(true);
+
+  const [firebaseError, setFirebaseError] =
+    useState("");
+
+  /* =====================================================
+     FIRESTORE REALTIME LISTENERS
+  ===================================================== */
 
   useEffect(() => {
-    const savedPatients = JSON.parse(
-      localStorage.getItem(PATIENTS_KEY) || "[]"
-    );
+    setLoading(true);
+    setFirebaseError("");
 
-    const savedTreatments = JSON.parse(
-      localStorage.getItem(TREATMENTS_KEY) || "[]"
-    );
+    const unsubscribePatients =
+      onSnapshot(
+        collection(
+          db,
+          PATIENTS_COLLECTION
+        ),
 
-    const savedAppointments = JSON.parse(
-      localStorage.getItem(APPOINTMENTS_KEY) || "[]"
-    );
+        (snapshot) => {
+          const records =
+            snapshot.docs.map(
+              (item) => ({
+                ...item.data(),
+                firestoreId:
+                  item.id,
+              })
+            );
 
-    setPatients(Array.isArray(savedPatients) ? savedPatients : []);
-    setTreatments(Array.isArray(savedTreatments) ? savedTreatments : []);
-    setAppointments(
-      Array.isArray(savedAppointments) ? savedAppointments : []
-    );
+          setPatients(records);
+          setLoading(false);
+        },
+
+        (error) => {
+          console.error(
+            "Patients Firestore error:",
+            error
+          );
+
+          setFirebaseError(
+            error.message ||
+              "Unable to load patients."
+          );
+
+          setLoading(false);
+        }
+      );
+
+    const unsubscribeTreatments =
+      onSnapshot(
+        collection(
+          db,
+          TREATMENTS_COLLECTION
+        ),
+
+        (snapshot) => {
+          const records =
+            snapshot.docs.map(
+              (item) => ({
+                ...item.data(),
+                firestoreId:
+                  item.id,
+              })
+            );
+
+          setTreatments(records);
+        },
+
+        (error) => {
+          console.error(
+            "Treatments Firestore error:",
+            error
+          );
+        }
+      );
+
+    const unsubscribeAppointments =
+      onSnapshot(
+        collection(
+          db,
+          APPOINTMENTS_COLLECTION
+        ),
+
+        (snapshot) => {
+          const records =
+            snapshot.docs.map(
+              (item) => ({
+                ...item.data(),
+                firestoreId:
+                  item.id,
+              })
+            );
+
+          setAppointments(records);
+        },
+
+        (error) => {
+          console.error(
+            "Appointments Firestore error:",
+            error
+          );
+        }
+      );
+
+    return () => {
+      unsubscribePatients();
+      unsubscribeTreatments();
+      unsubscribeAppointments();
+    };
   }, []);
 
-  useEffect(() => {
-    localStorage.setItem(PATIENTS_KEY, JSON.stringify(patients));
-  }, [patients]);
+  /* =====================================================
+     BASIC DATA
+  ===================================================== */
 
-  useEffect(() => {
-    localStorage.setItem(TREATMENTS_KEY, JSON.stringify(treatments));
-  }, [treatments]);
+  const today = getToday();
 
-  const today = new Date().toISOString().split("T")[0];
+  /* =====================================================
+     FILTER PATIENTS
+  ===================================================== */
 
-  const filteredPatients = useMemo(() => {
-    const query = search.trim().toLowerCase();
+  const filteredPatients =
+    useMemo(() => {
+      const queryText =
+        search.trim().toLowerCase();
 
-    return patients
-      .filter((patient) => {
-        if (statusFilter !== "All" && patient.status !== statusFilter) {
-          return false;
-        }
+      return patients
+        .filter((patient) => {
+          if (
+            statusFilter !== "All" &&
+            patient.status !==
+              statusFilter
+          ) {
+            return false;
+          }
 
-        if (!query) return true;
+          if (!queryText) {
+            return true;
+          }
 
-        return [
-          patient.patientId,
-          patient.name,
-          patient.mobile,
-          patient.email,
-          patient.assignedDoctor,
-          patient.currentTreatment,
-          patient.diagnosis,
-        ].some((value) =>
-          String(value || "")
-            .toLowerCase()
-            .includes(query)
+          return [
+            patient.patientId,
+            patient.name,
+            patient.mobile,
+            patient.email,
+            patient.assignedDoctor,
+            patient.currentTreatment,
+            patient.diagnosis,
+          ].some((value) =>
+            String(value || "")
+              .toLowerCase()
+              .includes(queryText)
+          );
+        })
+
+        .sort((a, b) =>
+          String(a.name || "").localeCompare(
+            String(b.name || "")
+          )
         );
-      })
-      .sort((a, b) =>
-        String(a.name || "").localeCompare(String(b.name || ""))
-      );
-  }, [patients, search, statusFilter]);
+    }, [
+      patients,
+      search,
+      statusFilter,
+    ]);
+
+  /* =====================================================
+     STATISTICS
+  ===================================================== */
 
   const stats = useMemo(() => {
-    const active = patients.filter(
-      (patient) => patient.status === "Active"
-    ).length;
+    const active =
+      patients.filter(
+        (patient) =>
+          patient.status === "Active"
+      ).length;
 
-    const completed = patients.filter(
-      (patient) => patient.status === "Completed"
-    ).length;
+    const completed =
+      patients.filter(
+        (patient) =>
+          patient.status ===
+          "Completed"
+      ).length;
 
-    const todayAppointments = appointments.filter(
-      (appointment) => normalizeDate(appointment.date) === today
-    ).length;
+    const todayAppointments =
+      appointments.filter(
+        (appointment) =>
+          normalizeDate(
+            appointment.date
+          ) === today
+      ).length;
 
-    const upcomingAppointments = appointments.filter(
-      (appointment) => isFutureDate(appointment.date)
-    ).length;
+    const upcomingAppointments =
+      appointments.filter(
+        (appointment) =>
+          isFutureDate(
+            appointment.date
+          )
+      ).length;
 
-    const followUpsDue = patients.filter((patient) => {
-      return (
-        patient.nextFollowUpDate &&
-        normalizeDate(patient.nextFollowUpDate) <= today &&
-        patient.status === "Active"
-      );
-    }).length;
+    const followUpsDue =
+      patients.filter((patient) => {
+        return (
+          patient.nextFollowUpDate &&
+          normalizeDate(
+            patient.nextFollowUpDate
+          ) <= today &&
+          patient.status === "Active"
+        );
+      }).length;
 
     return {
       total: patients.length,
@@ -393,9 +793,20 @@ export default function PatientManagement() {
       followUpsDue,
       completed,
     };
-  }, [patients, appointments, today]);
+  }, [
+    patients,
+    appointments,
+    today,
+  ]);
 
-  const updatePatientField = (field, value) => {
+  /* =====================================================
+     PATIENT FORM
+  ===================================================== */
+
+  const updatePatientField = (
+    field,
+    value
+  ) => {
     setPatientForm((prev) => ({
       ...prev,
       [field]: value,
@@ -404,14 +815,18 @@ export default function PatientManagement() {
 
   const openAddPatient = () => {
     setEditingPatient(null);
+
     setPatientForm({
       ...emptyPatient,
       registrationDate: today,
     });
+
     setShowPatientModal(true);
   };
 
-  const openEditPatient = (patient) => {
+  const openEditPatient = (
+    patient
+  ) => {
     setEditingPatient(patient);
 
     setPatientForm({
@@ -424,638 +839,1620 @@ export default function PatientManagement() {
 
   const closePatientModal = () => {
     setShowPatientModal(false);
+
     setEditingPatient(null);
-    setPatientForm(emptyPatient);
+
+    setPatientForm({
+      ...emptyPatient,
+      registrationDate: today,
+    });
   };
 
-  const savePatient = (e) => {
+  /* =====================================================
+     SAVE PATIENT
+  ===================================================== */
+
+  const savePatient = async (e) => {
     e.preventDefault();
 
-    if (!patientForm.name.trim()) {
-      alert("Please enter patient name.");
-      return;
-    }
-
-    if (!patientForm.mobile.trim()) {
-      alert("Please enter mobile number.");
-      return;
-    }
-
-    if (editingPatient) {
-      const updatedPatient = {
-        ...editingPatient,
-        ...patientForm,
-        name: patientForm.name.trim(),
-        mobile: patientForm.mobile.trim(),
-        updatedAt: new Date().toISOString(),
-      };
-
-      setPatients((prev) =>
-        prev.map((patient) =>
-          patient.patientId === editingPatient.patientId
-            ? updatedPatient
-            : patient
-        )
+    if (
+      !patientForm.name.trim()
+    ) {
+      alert(
+        "Please enter patient name."
       );
+      return;
+    }
+
+    if (
+      !patientForm.mobile.trim()
+    ) {
+      alert(
+        "Please enter mobile number."
+      );
+      return;
+    }
+
+    setSaving(true);
+
+    try {
+      /* ===============================================
+         EDIT PATIENT
+      =============================================== */
+
+      if (editingPatient) {
+        const updatedPatient = {
+          ...editingPatient,
+          ...patientForm,
+
+          name: patientForm.name.trim(),
+
+          mobile:
+            patientForm.mobile.trim(),
+
+          updatedAt:
+            new Date().toISOString(),
+        };
+
+        /*
+         * Patient Portal
+         *
+         * This tries to provision the patient
+         * portal account if your auth.js supports it.
+         */
+        try {
+          const portalUid =
+            await provisionPatientPortal(
+              updatedPatient
+            );
+
+          if (portalUid) {
+            updatedPatient.authUid =
+              portalUid;
+
+            updatedPatient.portalEnabled =
+              true;
+          }
+        } catch (portalError) {
+          console.warn(
+            "Patient portal provisioning skipped:",
+            portalError
+          );
+        }
+
+        const patientDocumentId =
+          editingPatient.firestoreId ||
+          editingPatient.patientId;
+
+        const patientRef = doc(
+          db,
+          PATIENTS_COLLECTION,
+          patientDocumentId
+        );
+
+        await setDoc(
+          patientRef,
+          cleanFirestoreData(
+            updatedPatient
+          ),
+          {
+            merge: true,
+          }
+        );
+
+        setSelectedPatient(
+          (previous) => {
+            if (
+              previous &&
+              previous.patientId ===
+                editingPatient.patientId
+            ) {
+              return {
+                ...updatedPatient,
+                firestoreId:
+                  patientDocumentId,
+              };
+            }
+
+            return previous;
+          }
+        );
+
+        alert(
+          "Patient record updated successfully."
+        );
+      }
+
+      /* ===============================================
+         CREATE PATIENT
+      =============================================== */
+
+      else {
+        const patientId =
+          await createNextPatientId(
+            patients
+          );
+
+        const newPatient = {
+          ...emptyPatient,
+
+          ...patientForm,
+
+          patientId,
+
+          name:
+            patientForm.name.trim(),
+
+          mobile:
+            patientForm.mobile.trim(),
+
+          whatsapp:
+            patientForm.whatsapp ||
+            patientForm.mobile.trim(),
+
+          createdAt:
+            new Date().toISOString(),
+
+          updatedAt:
+            new Date().toISOString(),
+
+          source:
+            "patient-management",
+
+          portalEnabled: false,
+        };
+
+        /*
+         * Create Patient Portal
+         */
+        try {
+          const portalUid =
+            await provisionPatientPortal(
+              newPatient
+            );
+
+          if (portalUid) {
+            newPatient.authUid =
+              portalUid;
+
+            newPatient.portalEnabled =
+              true;
+          }
+        } catch (portalError) {
+          console.warn(
+            "Patient portal provisioning skipped:",
+            portalError
+          );
+        }
+
+        const patientRef = doc(
+          db,
+          PATIENTS_COLLECTION,
+          patientId
+        );
+
+        await setDoc(
+          patientRef,
+          cleanFirestoreData(
+            newPatient
+          )
+        );
+
+        alert(
+          `Patient created successfully.\n\nPatient ID: ${patientId}`
+        );
+      }
+
+      closePatientModal();
+    } catch (error) {
+      console.error(
+        "Patient save error:",
+        error
+      );
+
+      alert(
+        "Patient could not be saved.\n\n" +
+          (error?.message ||
+            "Unknown Firebase error")
+      );
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  /* =====================================================
+     DELETE PATIENT
+  ===================================================== */
+
+  const deletePatient = async (
+    patient
+  ) => {
+    const confirmed =
+      window.confirm(
+        `Delete patient ${patient.name} (${patient.patientId})?\n\nThis will also remove treatment history for this patient.`
+      );
+
+    if (!confirmed) {
+      return;
+    }
+
+    setSaving(true);
+
+    try {
+      const batch =
+        writeBatch(db);
+
+      const patientRef =
+        doc(
+          db,
+          PATIENTS_COLLECTION,
+          patient.firestoreId ||
+            patient.patientId
+        );
+
+      batch.delete(
+        patientRef
+      );
+
+      const patientTreatmentRecords =
+        treatments.filter(
+          (item) =>
+            item.patientId ===
+            patient.patientId
+        );
+
+      patientTreatmentRecords.forEach(
+        (item) => {
+          const treatmentRef =
+            doc(
+              db,
+              TREATMENTS_COLLECTION,
+              item.firestoreId ||
+                item.id
+            );
+
+          batch.delete(
+            treatmentRef
+          );
+        }
+      );
+
+      await batch.commit();
 
       if (
         selectedPatient &&
-        selectedPatient.patientId === editingPatient.patientId
+        selectedPatient.patientId ===
+          patient.patientId
       ) {
-        setSelectedPatient(updatedPatient);
+        setSelectedPatient(null);
+        setShowProfile(false);
       }
 
-      alert("Patient record updated successfully.");
-    } else {
-      const newPatient = {
-        patientId: generatePatientId(patients),
-        ...patientForm,
-        name: patientForm.name.trim(),
-        mobile: patientForm.mobile.trim(),
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      };
+      alert(
+        "Patient deleted successfully."
+      );
+    } catch (error) {
+      console.error(
+        "Delete patient error:",
+        error
+      );
 
-      setPatients((prev) => [...prev, newPatient]);
-
-      alert(`Patient created successfully.\nPatient ID: ${newPatient.patientId}`);
-    }
-
-    closePatientModal();
-  };
-
-  const deletePatient = (patient) => {
-    const confirmed = window.confirm(
-      `Delete patient ${patient.name} (${patient.patientId})?\n\nThis will also remove treatment history for this patient.`
-    );
-
-    if (!confirmed) return;
-
-    setPatients((prev) =>
-      prev.filter((item) => item.patientId !== patient.patientId)
-    );
-
-    setTreatments((prev) =>
-      prev.filter((item) => item.patientId !== patient.patientId)
-    );
-
-    if (
-      selectedPatient &&
-      selectedPatient.patientId === patient.patientId
-    ) {
-      setSelectedPatient(null);
-      setShowProfile(false);
+      alert(
+        "Patient could not be deleted.\n\n" +
+          (error?.message ||
+            "Unknown Firebase error")
+      );
+    } finally {
+      setSaving(false);
     }
   };
 
-  const openProfile = (patient, tab = "Overview") => {
+  /* =====================================================
+     PROFILE
+  ===================================================== */
+
+  const openProfile = (
+    patient,
+    tab = "Overview"
+  ) => {
     setSelectedPatient(patient);
     setProfileTab(tab);
     setShowProfile(true);
   };
 
-  const patientTreatments = selectedPatient
-    ? treatments
-        .filter(
-          (item) => item.patientId === selectedPatient.patientId
-        )
-        .sort((a, b) =>
-          String(b.date || "").localeCompare(String(a.date || ""))
-        )
-    : [];
+  /* =====================================================
+     SELECTED PATIENT DATA
+  ===================================================== */
 
-  const selectedPatientAppointments = selectedPatient
-    ? appointments
-        .filter((appointment) =>
-          getAppointmentPatientMatch(selectedPatient, appointment)
-        )
-        .sort((a, b) =>
-          String(b.date || "").localeCompare(String(a.date || ""))
-        )
-    : [];
+  const patientTreatments =
+    selectedPatient
+      ? treatments
+          .filter(
+            (item) =>
+              item.patientId ===
+              selectedPatient.patientId
+          )
+          .sort((a, b) =>
+            String(
+              b.date || ""
+            ).localeCompare(
+              String(
+                a.date || ""
+              )
+            )
+          )
+      : [];
 
-  const openAddTreatment = (patient) => {
+  const selectedPatientAppointments =
+    selectedPatient
+      ? appointments
+          .filter((appointment) =>
+            getAppointmentPatientMatch(
+              selectedPatient,
+              appointment
+            )
+          )
+          .sort((a, b) =>
+            String(
+              b.date || ""
+            ).localeCompare(
+              String(
+                a.date || ""
+              )
+            )
+          )
+      : [];
+
+  /* =====================================================
+     TREATMENT MODAL
+  ===================================================== */
+
+  const openAddTreatment = (
+    patient
+  ) => {
     setSelectedPatient(patient);
+
     setTreatmentForm({
       ...emptyTreatment,
+
       date: today,
-      doctor: patient.assignedDoctor || "",
-      treatment: patient.currentTreatment || "",
+
+      doctor:
+        patient.assignedDoctor ||
+        "",
+
+      treatment:
+        patient.currentTreatment ||
+        "",
     });
+
     setShowTreatmentModal(true);
   };
 
   const closeTreatmentModal = () => {
     setShowTreatmentModal(false);
-    setTreatmentForm(emptyTreatment);
+
+    setTreatmentForm({
+      ...emptyTreatment,
+      date: today,
+    });
   };
 
-  const saveTreatment = (e) => {
+  /* =====================================================
+     SAVE TREATMENT
+  ===================================================== */
+
+  const saveTreatment = async (
+    e
+  ) => {
     e.preventDefault();
 
-    if (!selectedPatient) return;
-
-    if (!treatmentForm.treatment.trim()) {
-      alert("Please select / enter treatment.");
+    if (!selectedPatient) {
       return;
     }
 
-    if (!treatmentForm.doctor.trim()) {
-      alert("Please select / enter doctor.");
+    if (
+      !treatmentForm.treatment.trim()
+    ) {
+      alert(
+        "Please select / enter treatment."
+      );
       return;
     }
 
-    const record = {
-      id: Date.now(),
-      patientId: selectedPatient.patientId,
-      patientName: selectedPatient.name,
-      ...treatmentForm,
-      treatment: treatmentForm.treatment.trim(),
-      doctor: treatmentForm.doctor.trim(),
-      createdAt: new Date().toISOString(),
-    };
+    if (
+      !treatmentForm.doctor.trim()
+    ) {
+      alert(
+        "Please select / enter doctor."
+      );
+      return;
+    }
 
-    setTreatments((prev) => [...prev, record]);
+    setSaving(true);
 
-    setPatients((prev) =>
-      prev.map((patient) => {
-        if (patient.patientId !== selectedPatient.patientId) {
-          return patient;
-        }
+    try {
+      const treatmentId = `${selectedPatient.patientId}-${Date.now()}`;
 
-        const completed =
-          Number(patient.sessionsCompleted || 0) + 1;
+      const record = {
+        id: treatmentId,
 
-        return {
-          ...patient,
-          sessionsCompleted: completed,
-          currentTreatment:
-            treatmentForm.treatment || patient.currentTreatment,
-          assignedDoctor:
-            treatmentForm.doctor || patient.assignedDoctor,
-          updatedAt: new Date().toISOString(),
-        };
-      })
-    );
+        patientId:
+          selectedPatient.patientId,
 
-    setSelectedPatient((prev) =>
-      prev
-        ? {
-            ...prev,
-            sessionsCompleted:
-              Number(prev.sessionsCompleted || 0) + 1,
-            currentTreatment:
-              treatmentForm.treatment || prev.currentTreatment,
-            assignedDoctor:
-              treatmentForm.doctor || prev.assignedDoctor,
-          }
-        : prev
-    );
+        patientName:
+          selectedPatient.name,
 
-    closeTreatmentModal();
+        patientAuthUid:
+          selectedPatient.authUid ||
+          "",
 
-    alert("Treatment record added successfully.");
-  };
+        ...treatmentForm,
 
-  const syncAppointments = () => {
-    const currentPatients = [...patients];
+        treatment:
+          treatmentForm.treatment.trim(),
 
-    let added = 0;
-    let updated = 0;
+        doctor:
+          treatmentForm.doctor.trim(),
 
-    appointments.forEach((appointment) => {
-      const matchingIndex = currentPatients.findIndex((patient) =>
-        getAppointmentPatientMatch(patient, appointment)
+        createdAt:
+          new Date().toISOString(),
+      };
+
+      const completed =
+        Number(
+          selectedPatient.sessionsCompleted ||
+            0
+        ) + 1;
+
+      const updatedPatient = {
+        ...selectedPatient,
+
+        sessionsCompleted:
+          completed,
+
+        currentTreatment:
+          treatmentForm.treatment ||
+          selectedPatient.currentTreatment,
+
+        assignedDoctor:
+          treatmentForm.doctor ||
+          selectedPatient.assignedDoctor,
+
+        updatedAt:
+          new Date().toISOString(),
+      };
+
+      const batch =
+        writeBatch(db);
+
+      const treatmentRef =
+        doc(
+          db,
+          TREATMENTS_COLLECTION,
+          treatmentId
+        );
+
+      batch.set(
+        treatmentRef,
+        cleanFirestoreData(
+          record
+        )
       );
 
-      if (matchingIndex === -1) {
-        const newPatient = {
-          ...emptyPatient,
-          patientId: generatePatientId(currentPatients),
-          name: appointment.name || "",
-          mobile: appointment.phone || "",
-          email: appointment.email || "",
-          age: appointment.age || "",
-          gender: appointment.gender || "",
-          currentTreatment: appointment.treatment || "",
-          assignedDoctor: appointment.doctorName || "",
-          firstVisitDate: appointment.date || "",
-          registrationDate: appointment.date || today,
-          status: "Active",
-          notes:
-            "Patient record created by Appointment Management sync.",
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        };
+      const patientRef =
+        doc(
+          db,
+          PATIENTS_COLLECTION,
+          selectedPatient.firestoreId ||
+            selectedPatient.patientId
+        );
 
-        currentPatients.push(newPatient);
-        added++;
-      } else {
-        const patient = currentPatients[matchingIndex];
+      batch.set(
+        patientRef,
+        cleanFirestoreData(
+          updatedPatient
+        ),
+        {
+          merge: true,
+        }
+      );
 
-        currentPatients[matchingIndex] = {
-          ...patient,
-          name: patient.name || appointment.name || "",
-          mobile: patient.mobile || appointment.phone || "",
-          email: patient.email || appointment.email || "",
-          age: patient.age || appointment.age || "",
-          gender: patient.gender || appointment.gender || "",
-          currentTreatment:
-            patient.currentTreatment || appointment.treatment || "",
-          assignedDoctor:
-            patient.assignedDoctor || appointment.doctorName || "",
-          updatedAt: new Date().toISOString(),
-        };
+      await batch.commit();
 
-        updated++;
+      setSelectedPatient(
+        updatedPatient
+      );
+
+      closeTreatmentModal();
+
+      alert(
+        "Treatment record added successfully."
+      );
+    } catch (error) {
+      console.error(
+        "Treatment save error:",
+        error
+      );
+
+      alert(
+        "Treatment record could not be saved.\n\n" +
+          (error?.message ||
+            "Unknown Firebase error")
+      );
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  /* =====================================================
+     APPOINTMENT → PATIENT SYNC
+  ===================================================== */
+
+  const syncAppointments =
+    async () => {
+      try {
+        setSaving(true);
+
+        const currentPatients = [
+          ...patients,
+        ];
+
+        let added = 0;
+        let updated = 0;
+        let portalCreated = 0;
+
+        /*
+         * We commit in chunks so a large number
+         * of appointments does not exceed Firestore
+         * batch limits.
+         */
+
+        let batch =
+          writeBatch(db);
+
+        let batchWrites = 0;
+
+        const commitBatch =
+          async () => {
+            if (batchWrites > 0) {
+              await batch.commit();
+            }
+
+            batch =
+              writeBatch(db);
+
+            batchWrites = 0;
+          };
+
+        for (const appointment of appointments) {
+          const matchingIndex =
+            currentPatients.findIndex(
+              (patient) =>
+                getAppointmentPatientMatch(
+                  patient,
+                  appointment
+                )
+            );
+
+          /* =========================================
+             NEW PATIENT
+          ========================================= */
+
+          if (matchingIndex === -1) {
+            const patientId =
+              await createNextPatientId(
+                currentPatients
+              );
+
+            const newPatient = {
+              ...emptyPatient,
+
+              patientId,
+
+              name:
+                appointment.name ||
+                "",
+
+              mobile:
+                appointment.phone ||
+                "",
+
+              whatsapp:
+                appointment.phone ||
+                "",
+
+              email:
+                appointment.email ||
+                "",
+
+              age:
+                appointment.age ||
+                "",
+
+              gender:
+                appointment.gender ||
+                "",
+
+              currentTreatment:
+                appointment.treatment ||
+                "",
+
+              assignedDoctor:
+                appointment.doctorName ||
+                "",
+
+              firstVisitDate:
+                appointment.date ||
+                "",
+
+              registrationDate:
+                appointment.date ||
+                today,
+
+              status: "Active",
+
+              notes:
+                "Patient record created automatically from Appointment Management sync.",
+
+              createdAt:
+                new Date().toISOString(),
+
+              updatedAt:
+                new Date().toISOString(),
+
+              source:
+                "appointment-sync",
+
+              portalEnabled:
+                false,
+            };
+
+            /*
+             * Try to create patient portal.
+             */
+            try {
+              const portalUid =
+                await provisionPatientPortal(
+                  newPatient
+                );
+
+              if (portalUid) {
+                newPatient.authUid =
+                  portalUid;
+
+                newPatient.portalEnabled =
+                  true;
+
+                portalCreated++;
+              }
+            } catch (portalError) {
+              console.warn(
+                "Patient portal creation skipped:",
+                portalError
+              );
+            }
+
+            currentPatients.push(
+              newPatient
+            );
+
+            const patientRef =
+              doc(
+                db,
+                PATIENTS_COLLECTION,
+                patientId
+              );
+
+            batch.set(
+              patientRef,
+              cleanFirestoreData(
+                newPatient
+              )
+            );
+
+            batchWrites++;
+            added++;
+          }
+
+          /* =========================================
+             EXISTING PATIENT
+          ========================================= */
+
+          else {
+            const patient =
+              currentPatients[
+                matchingIndex
+              ];
+
+            const updatedPatient = {
+              ...patient,
+
+              name:
+                patient.name ||
+                appointment.name ||
+                "",
+
+              mobile:
+                patient.mobile ||
+                appointment.phone ||
+                "",
+
+              whatsapp:
+                patient.whatsapp ||
+                appointment.phone ||
+                "",
+
+              email:
+                patient.email ||
+                appointment.email ||
+                "",
+
+              age:
+                patient.age ||
+                appointment.age ||
+                "",
+
+              gender:
+                patient.gender ||
+                appointment.gender ||
+                "",
+
+              currentTreatment:
+                patient.currentTreatment ||
+                appointment.treatment ||
+                "",
+
+              assignedDoctor:
+                patient.assignedDoctor ||
+                appointment.doctorName ||
+                "",
+
+              firstVisitDate:
+                patient.firstVisitDate ||
+                appointment.date ||
+                "",
+
+              registrationDate:
+                patient.registrationDate ||
+                appointment.date ||
+                today,
+
+              status:
+                patient.status ||
+                "Active",
+
+              updatedAt:
+                new Date().toISOString(),
+            };
+
+            /*
+             * Only provision portal when patient
+             * does not already have one.
+             */
+            if (
+              !updatedPatient.authUid ||
+              !updatedPatient.portalEnabled
+            ) {
+              try {
+                const portalUid =
+                  await provisionPatientPortal(
+                    updatedPatient
+                  );
+
+                if (portalUid) {
+                  updatedPatient.authUid =
+                    portalUid;
+
+                  updatedPatient.portalEnabled =
+                    true;
+
+                  portalCreated++;
+                }
+              } catch (portalError) {
+                console.warn(
+                  "Existing patient portal creation skipped:",
+                  portalError
+                );
+              }
+            }
+
+            currentPatients[
+              matchingIndex
+            ] = updatedPatient;
+
+            const patientRef =
+              doc(
+                db,
+                PATIENTS_COLLECTION,
+                patient.firestoreId ||
+                  patient.patientId
+              );
+
+            batch.set(
+              patientRef,
+              cleanFirestoreData(
+                updatedPatient
+              ),
+              {
+                merge: true,
+              }
+            );
+
+            batchWrites++;
+            updated++;
+          }
+
+          /*
+           * Firestore batch maximum is 500 writes.
+           * Commit before reaching the limit.
+           */
+          if (batchWrites >= 450) {
+            await commitBatch();
+          }
+        }
+
+        await commitBatch();
+
+        alert(
+          `Appointment sync completed successfully.\n\nNew patients: ${added}\nUpdated patients: ${updated}\nPatient portal accounts: ${portalCreated}`
+        );
+      } catch (error) {
+        console.error(
+          "Appointment sync error:",
+          error
+        );
+
+        alert(
+          "Appointment sync failed.\n\n" +
+            (error?.message ||
+              "Unknown Firebase error")
+        );
+      } finally {
+        setSaving(false);
       }
-    });
+    };
 
-    setPatients(currentPatients);
+  /* =====================================================
+     TIMELINE
+  ===================================================== */
 
-    alert(
-      `Appointment sync completed.\n\nNew patients: ${added}\nUpdated patients: ${updated}`
-    );
-  };
+  const buildTimeline =
+    () => {
+      if (!selectedPatient) {
+        return [];
+      }
 
-  const buildTimeline = () => {
-    if (!selectedPatient) return [];
+      const timeline = [];
 
-    const timeline = [];
+      /* Registration */
 
-    if (selectedPatient.registrationDate) {
-      timeline.push({
-        id: `registration-${selectedPatient.patientId}`,
-        date: selectedPatient.registrationDate,
-        type: "Registration",
-        title: "Patient Registered",
-        description: "Patient record was created.",
-        doctor: "",
-      });
-    }
+      if (
+        selectedPatient.registrationDate
+      ) {
+        timeline.push({
+          id: `registration-${selectedPatient.patientId}`,
 
-    selectedPatientAppointments.forEach((appointment) => {
-      timeline.push({
-        id: `appointment-${appointment.id}`,
-        date: appointment.date,
-        type: "Appointment",
-        title: appointment.treatment || "Appointment",
-        description: `${appointment.slot || ""}${
-          appointment.status ? ` • ${appointment.status}` : ""
-        }`,
-        doctor: appointment.doctorName || "",
-      });
-    });
+          date:
+            selectedPatient.registrationDate,
 
-    patientTreatments.forEach((treatment) => {
-      timeline.push({
-        id: `treatment-${treatment.id}`,
-        date: treatment.date,
-        type: "Treatment",
-        title: treatment.treatment,
-        description:
-          treatment.observation ||
-          treatment.notes ||
-          "Treatment/session completed.",
-        doctor: treatment.doctor || "",
-      });
-    });
+          type: "Registration",
 
-    if (selectedPatient.nextFollowUpDate) {
-      timeline.push({
-        id: `followup-${selectedPatient.patientId}`,
-        date: selectedPatient.nextFollowUpDate,
-        type: "Follow-up",
-        title: "Next Follow-up",
-        description: "Scheduled follow-up date.",
-        doctor: selectedPatient.assignedDoctor || "",
-      });
-    }
+          title:
+            "Patient Registered",
 
-    return timeline.sort((a, b) =>
-      String(b.date || "").localeCompare(String(a.date || ""))
-    );
-  };
+          description:
+            "Patient record was created.",
+
+          doctor: "",
+        });
+      }
+
+      /* Appointments */
+
+      selectedPatientAppointments.forEach(
+        (appointment) => {
+          timeline.push({
+            id: `appointment-${
+              appointment.id ||
+              appointment.firestoreId
+            }`,
+
+            date:
+              appointment.date,
+
+            type: "Appointment",
+
+            title:
+              appointment.treatment ||
+              "Appointment",
+
+            description: `${
+              appointment.slot || ""
+            }${
+              appointment.status
+                ? ` • ${appointment.status}`
+                : ""
+            }`,
+
+            doctor:
+              appointment.doctorName ||
+              "",
+          });
+        }
+      );
+
+      /* Treatments */
+
+      patientTreatments.forEach(
+        (treatment) => {
+          timeline.push({
+            id: `treatment-${
+              treatment.id ||
+              treatment.firestoreId
+            }`,
+
+            date:
+              treatment.date,
+
+            type: "Treatment",
+
+            title:
+              treatment.treatment,
+
+            description:
+              treatment.observation ||
+              treatment.notes ||
+              "Treatment/session completed.",
+
+            doctor:
+              treatment.doctor || "",
+          });
+        }
+      );
+
+      /* Follow-up */
+
+      if (
+        selectedPatient.nextFollowUpDate
+      ) {
+        timeline.push({
+          id: `followup-${selectedPatient.patientId}`,
+
+          date:
+            selectedPatient.nextFollowUpDate,
+
+          type: "Follow-up",
+
+          title:
+            "Next Follow-up",
+
+          description:
+            "Scheduled follow-up date.",
+
+          doctor:
+            selectedPatient.assignedDoctor ||
+            "",
+        });
+      }
+
+      return timeline.sort(
+        (a, b) =>
+          String(
+            b.date || ""
+          ).localeCompare(
+            String(
+              a.date || ""
+            )
+          )
+      );
+    };
+
+  /* =====================================================
+     UI
+  ===================================================== */
 
   return (
     <div className="pm-page">
       <div className="pm-container">
-        {/* HEADER */}
+
+        {/* ============================================
+            HEADER
+        ============================================ */}
+
         <div className="pm-header">
           <div>
             <div className="pm-brand">
-              <span className="pm-brand-icon">✚</span>
+              <span className="pm-brand-icon">
+                ✚
+              </span>
+
               Punar Axis Therapy
             </div>
 
-            <h1>Patient Management</h1>
+            <h1>
+              Patient Management
+            </h1>
 
             <p>
-              Complete patient profile, treatment history, doctor history,
+              Complete patient profile,
+              treatment history, doctor history,
               appointments and follow-ups.
             </p>
           </div>
 
           <div className="pm-header-actions">
+
             <button
               className="pm-btn pm-btn-secondary"
-              onClick={syncAppointments}
+              onClick={
+                syncAppointments
+              }
+              disabled={saving}
             >
-              🔄 Sync Appointments
+              🔄{" "}
+              {saving
+                ? "Syncing..."
+                : "Sync Appointments"}
             </button>
 
             <button
               className="pm-btn pm-btn-primary"
-              onClick={openAddPatient}
+              onClick={
+                openAddPatient
+              }
+              disabled={saving}
             >
               + Add Patient
             </button>
+
           </div>
         </div>
 
-        {/* STATS */}
+        {/* ============================================
+            FIREBASE ERROR
+        ============================================ */}
+
+        {firebaseError && (
+          <div
+            style={{
+              background:
+                "#fff1f2",
+              border:
+                "1px solid #fecdd3",
+              color:
+                "#9f1239",
+              padding:
+                "14px 18px",
+              borderRadius:
+                "12px",
+              marginBottom:
+                "18px",
+            }}
+          >
+            <strong>
+              Firebase Error:
+            </strong>{" "}
+            {firebaseError}
+          </div>
+        )}
+
+        {/* ============================================
+            STATS
+        ============================================ */}
+
         <div className="pm-stats-grid">
+
           <div className="pm-stat-card">
-            <div className="pm-stat-icon">👥</div>
+            <div className="pm-stat-icon">
+              👥
+            </div>
+
             <div>
-              <span>Total Patients</span>
-              <strong>{stats.total}</strong>
+              <span>
+                Total Patients
+              </span>
+
+              <strong>
+                {stats.total}
+              </strong>
             </div>
           </div>
 
           <div className="pm-stat-card">
-            <div className="pm-stat-icon">🟢</div>
+            <div className="pm-stat-icon">
+              🟢
+            </div>
+
             <div>
-              <span>Active Patients</span>
-              <strong>{stats.active}</strong>
+              <span>
+                Active Patients
+              </span>
+
+              <strong>
+                {stats.active}
+              </strong>
             </div>
           </div>
 
           <div className="pm-stat-card">
-            <div className="pm-stat-icon">📅</div>
+            <div className="pm-stat-icon">
+              📅
+            </div>
+
             <div>
-              <span>Today's Appointments</span>
-              <strong>{stats.todayAppointments}</strong>
+              <span>
+                Today's Appointments
+              </span>
+
+              <strong>
+                {stats.todayAppointments}
+              </strong>
             </div>
           </div>
 
           <div className="pm-stat-card">
-            <div className="pm-stat-icon">⏰</div>
+            <div className="pm-stat-icon">
+              ⏰
+            </div>
+
             <div>
-              <span>Upcoming Appointments</span>
-              <strong>{stats.upcomingAppointments}</strong>
+              <span>
+                Upcoming Appointments
+              </span>
+
+              <strong>
+                {stats.upcomingAppointments}
+              </strong>
             </div>
           </div>
 
           <div className="pm-stat-card">
-            <div className="pm-stat-icon">🔔</div>
+            <div className="pm-stat-icon">
+              🔔
+            </div>
+
             <div>
-              <span>Follow-ups Due</span>
-              <strong>{stats.followUpsDue}</strong>
+              <span>
+                Follow-ups Due
+              </span>
+
+              <strong>
+                {stats.followUpsDue}
+              </strong>
             </div>
           </div>
 
           <div className="pm-stat-card">
-            <div className="pm-stat-icon">✅</div>
+            <div className="pm-stat-icon">
+              ✅
+            </div>
+
             <div>
-              <span>Completed Patients</span>
-              <strong>{stats.completed}</strong>
+              <span>
+                Completed Patients
+              </span>
+
+              <strong>
+                {stats.completed}
+              </strong>
             </div>
           </div>
+
         </div>
 
-        {/* SEARCH */}
+        {/* ============================================
+            SEARCH
+        ============================================ */}
+
         <div className="pm-filter-card">
+
           <div className="pm-search-box">
-            <span>🔍</span>
+            <span>
+              🔍
+            </span>
+
             <input
               type="text"
               placeholder="Search Patient ID, name, mobile, doctor, treatment..."
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              onChange={(e) =>
+                setSearch(
+                  e.target.value
+                )
+              }
             />
           </div>
 
           <select
             value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
+            onChange={(e) =>
+              setStatusFilter(
+                e.target.value
+              )
+            }
           >
-            <option value="All">All Status</option>
-            <option value="Active">Active</option>
-            <option value="Inactive">Inactive</option>
-            <option value="Completed">Completed</option>
+            <option value="All">
+              All Status
+            </option>
+
+            <option value="Active">
+              Active
+            </option>
+
+            <option value="Inactive">
+              Inactive
+            </option>
+
+            <option value="Completed">
+              Completed
+            </option>
           </select>
 
           <button
             className="pm-btn pm-btn-light"
             onClick={() => {
               setSearch("");
-              setStatusFilter("All");
+              setStatusFilter(
+                "All"
+              );
             }}
           >
             Reset
           </button>
+
         </div>
 
-        {/* PATIENT TABLE */}
+        {/* ============================================
+            PATIENT DIRECTORY
+        ============================================ */}
+
         <div className="pm-main-card">
+
           <div className="pm-card-heading">
             <div>
-              <h2>Patient Directory</h2>
+              <h2>
+                Patient Directory
+              </h2>
+
               <p>
-                {filteredPatients.length} patient
-                {filteredPatients.length === 1 ? "" : "s"} found
+                {filteredPatients.length}{" "}
+                patient
+                {filteredPatients.length ===
+                1
+                  ? ""
+                  : "s"}{" "}
+                found
               </p>
             </div>
           </div>
 
-          {filteredPatients.length === 0 ? (
+          {loading ? (
             <div className="pm-empty">
-              <div className="pm-empty-icon">👤</div>
-              <h3>No patients found</h3>
+
+              <div className="pm-empty-icon">
+                ☁️
+              </div>
+
+              <h3>
+                Loading patients...
+              </h3>
+
               <p>
-                Add a patient or sync existing appointment records.
+                Fetching patient records
+                from Firebase.
+              </p>
+
+            </div>
+          ) : filteredPatients.length ===
+            0 ? (
+            <div className="pm-empty">
+
+              <div className="pm-empty-icon">
+                👤
+              </div>
+
+              <h3>
+                No patients found
+              </h3>
+
+              <p>
+                Add a patient or sync
+                existing appointment
+                records.
               </p>
 
               <button
                 className="pm-btn pm-btn-primary"
-                onClick={openAddPatient}
+                onClick={
+                  openAddPatient
+                }
               >
                 + Add First Patient
               </button>
+
             </div>
           ) : (
             <div className="pm-table-wrap">
+
               <table className="pm-table pm-patient-table">
+
                 <thead>
                   <tr>
-                    <th>Patient ID</th>
-                    <th>Patient</th>
-                    <th>Mobile</th>
-                    <th>Diagnosis / Problem</th>
-                    <th>Current Treatment</th>
-                    <th>Doctor</th>
-                    <th>Next Follow-up</th>
-                    <th>Status</th>
-                    <th>Actions</th>
+                    <th>
+                      Patient ID
+                    </th>
+
+                    <th>
+                      Patient
+                    </th>
+
+                    <th>
+                      Mobile
+                    </th>
+
+                    <th>
+                      Diagnosis /
+                      Problem
+                    </th>
+
+                    <th>
+                      Current
+                      Treatment
+                    </th>
+
+                    <th>
+                      Doctor
+                    </th>
+
+                    <th>
+                      Next
+                      Follow-up
+                    </th>
+
+                    <th>
+                      Status
+                    </th>
+
+                    <th>
+                      Actions
+                    </th>
                   </tr>
                 </thead>
 
                 <tbody>
-                  {filteredPatients.map((patient) => {
-                    const patientAppointmentCount =
-                      appointments.filter((appointment) =>
-                        getAppointmentPatientMatch(patient, appointment)
-                      ).length;
+                  {filteredPatients.map(
+                    (patient) => {
 
-                    return (
-                      <tr key={patient.patientId}>
-                        <td>
-                          <span className="pm-patient-id">
-                            {patient.patientId}
-                          </span>
-                        </td>
+                      const patientAppointmentCount =
+                        appointments.filter(
+                          (appointment) =>
+                            getAppointmentPatientMatch(
+                              patient,
+                              appointment
+                            )
+                        ).length;
 
-                        <td>
-                          <div className="pm-patient-cell">
-                            <div className="pm-avatar">
-                              {String(patient.name || "?")
-                                .charAt(0)
-                                .toUpperCase()}
-                            </div>
+                      return (
+                        <tr
+                          key={
+                            patient.firestoreId ||
+                            patient.patientId
+                          }
+                        >
 
-                            <div>
-                              <strong>{patient.name}</strong>
-
-                              <small>
-                                {patient.gender || "-"}
-                                {patient.age
-                                  ? ` • ${patient.age} yrs`
-                                  : ""}
-                              </small>
-
-                              <small>
-                                {patientAppointmentCount} appointment
-                                {patientAppointmentCount === 1
-                                  ? ""
-                                  : "s"}
-                              </small>
-                            </div>
-                          </div>
-                        </td>
-
-                        <td>{patient.mobile || "-"}</td>
-
-                        <td>
-                          {patient.diagnosis || (
-                            <span className="pm-muted">Not added</span>
-                          )}
-                        </td>
-
-                        <td>
-                          {patient.currentTreatment || (
-                            <span className="pm-muted">Not added</span>
-                          )}
-                        </td>
-
-                        <td>
-                          {patient.assignedDoctor || (
-                            <span className="pm-muted">Not assigned</span>
-                          )}
-                        </td>
-
-                        <td>
-                          {patient.nextFollowUpDate ? (
-                            <span
-                              className={
-                                normalizeDate(
-                                  patient.nextFollowUpDate
-                                ) <= today
-                                  ? "pm-followup-due"
-                                  : ""
+                          <td>
+                            <span className="pm-patient-id">
+                              {
+                                patient.patientId
                               }
-                            >
-                              {formatDate(patient.nextFollowUpDate)}
                             </span>
-                          ) : (
-                            "-"
-                          )}
-                        </td>
+                          </td>
 
-                        <td>
-                          <span
-                            className={`pm-status ${String(
-                              patient.status || "Active"
-                            ).toLowerCase()}`}
-                          >
-                            {patient.status || "Active"}
-                          </span>
-                        </td>
+                          <td>
+                            <div className="pm-patient-cell">
 
-                        <td>
-                          <div className="pm-action-buttons">
-                            <button
-                              className="pm-icon-btn"
-                              title="View Profile"
-                              onClick={() => openProfile(patient)}
+                              <div className="pm-avatar">
+                                {String(
+                                  patient.name ||
+                                    "?"
+                                )
+                                  .charAt(
+                                    0
+                                  )
+                                  .toUpperCase()}
+                              </div>
+
+                              <div>
+
+                                <strong>
+                                  {
+                                    patient.name
+                                  }
+                                </strong>
+
+                                <small>
+                                  {patient.gender ||
+                                    "-"}
+
+                                  {patient.age
+                                    ? ` • ${patient.age} yrs`
+                                    : ""}
+                                </small>
+
+                                <small>
+                                  {
+                                    patientAppointmentCount
+                                  }{" "}
+                                  appointment
+                                  {patientAppointmentCount ===
+                                  1
+                                    ? ""
+                                    : "s"}
+                                </small>
+
+                              </div>
+
+                            </div>
+                          </td>
+
+                          <td>
+                            {patient.mobile ||
+                              "-"}
+                          </td>
+
+                          <td>
+                            {patient.diagnosis || (
+                              <span className="pm-muted">
+                                Not added
+                              </span>
+                            )}
+                          </td>
+
+                          <td>
+                            {patient.currentTreatment || (
+                              <span className="pm-muted">
+                                Not added
+                              </span>
+                            )}
+                          </td>
+
+                          <td>
+                            {patient.assignedDoctor || (
+                              <span className="pm-muted">
+                                Not assigned
+                              </span>
+                            )}
+                          </td>
+
+                          <td>
+                            {patient.nextFollowUpDate ? (
+                              <span
+                                className={
+                                  normalizeDate(
+                                    patient.nextFollowUpDate
+                                  ) <=
+                                  today
+                                    ? "pm-followup-due"
+                                    : ""
+                                }
+                              >
+                                {formatDate(
+                                  patient.nextFollowUpDate
+                                )}
+                              </span>
+                            ) : (
+                              "-"
+                            )}
+                          </td>
+
+                          <td>
+                            <span
+                              className={`pm-status ${String(
+                                patient.status ||
+                                  "Active"
+                              ).toLowerCase()}`}
                             >
-                              👁️
-                            </button>
+                              {patient.status ||
+                                "Active"}
+                            </span>
+                          </td>
 
-                            <button
-                              className="pm-icon-btn"
-                              title="Add Treatment"
-                              onClick={() =>
-                                openAddTreatment(patient)
-                              }
-                            >
-                              ➕
-                            </button>
+                          <td>
+                            <div className="pm-action-buttons">
 
-                            <button
-                              className="pm-icon-btn"
-                              title="Edit"
-                              onClick={() =>
-                                openEditPatient(patient)
-                              }
-                            >
-                              ✏️
-                            </button>
+                              <button
+                                className="pm-icon-btn"
+                                title="View Profile"
+                                onClick={() =>
+                                  openProfile(
+                                    patient
+                                  )
+                                }
+                              >
+                                👁️
+                              </button>
 
-                            <button
-                              className="pm-icon-btn pm-delete"
-                              title="Delete"
-                              onClick={() =>
-                                deletePatient(patient)
-                              }
-                            >
-                              🗑️
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
+                              <button
+                                className="pm-icon-btn"
+                                title="Add Treatment"
+                                onClick={() =>
+                                  openAddTreatment(
+                                    patient
+                                  )
+                                }
+                              >
+                                ➕
+                              </button>
+
+                              <button
+                                className="pm-icon-btn"
+                                title="Edit"
+                                onClick={() =>
+                                  openEditPatient(
+                                    patient
+                                  )
+                                }
+                              >
+                                ✏️
+                              </button>
+
+                              <button
+                                className="pm-icon-btn pm-delete"
+                                title="Delete"
+                                onClick={() =>
+                                  deletePatient(
+                                    patient
+                                  )
+                                }
+                                disabled={
+                                  saving
+                                }
+                              >
+                                🗑️
+                              </button>
+
+                            </div>
+                          </td>
+
+                        </tr>
+                      );
+                    }
+                  )}
                 </tbody>
+
               </table>
+
             </div>
           )}
+
         </div>
+
       </div>
 
-      {/* ADD / EDIT PATIENT MODAL */}
+      {/* =================================================
+          ADD / EDIT PATIENT MODAL
+      ================================================= */}
+
       {showPatientModal && (
         <div
           className="pm-modal-overlay"
           onMouseDown={(e) => {
-            if (e.target === e.currentTarget) {
+            if (
+              e.target ===
+              e.currentTarget
+            ) {
               closePatientModal();
             }
           }}
         >
+
           <div className="pm-modal pm-large-modal">
+
             <div className="pm-modal-header">
+
               <div>
+
                 <h2>
                   {editingPatient
                     ? "Edit Patient"
@@ -1067,27 +2464,48 @@ export default function PatientManagement() {
                     ? `Patient ID: ${editingPatient.patientId}`
                     : "Create complete patient record"}
                 </p>
+
               </div>
 
               <button
                 className="pm-close-btn"
-                onClick={closePatientModal}
+                onClick={
+                  closePatientModal
+                }
               >
                 ×
               </button>
+
             </div>
 
-            <form onSubmit={savePatient}>
+            <form
+              onSubmit={
+                savePatient
+              }
+            >
+
               <div className="pm-modal-body">
+
+                {/* PERSONAL */}
+
                 <div className="pm-form-section">
-                  <h3>👤 Personal Information</h3>
+
+                  <h3>
+                    👤 Personal Information
+                  </h3>
 
                   <div className="pm-form-grid">
+
                     <div className="pm-field">
-                      <label>Patient Name *</label>
+                      <label>
+                        Patient Name *
+                      </label>
+
                       <input
                         type="text"
-                        value={patientForm.name}
+                        value={
+                          patientForm.name
+                        }
                         onChange={(e) =>
                           updatePatientField(
                             "name",
@@ -1100,10 +2518,15 @@ export default function PatientManagement() {
                     </div>
 
                     <div className="pm-field">
-                      <label>Mobile Number *</label>
+                      <label>
+                        Mobile Number *
+                      </label>
+
                       <input
                         type="tel"
-                        value={patientForm.mobile}
+                        value={
+                          patientForm.mobile
+                        }
                         onChange={(e) =>
                           updatePatientField(
                             "mobile",
@@ -1116,10 +2539,15 @@ export default function PatientManagement() {
                     </div>
 
                     <div className="pm-field">
-                      <label>WhatsApp Number</label>
+                      <label>
+                        WhatsApp Number
+                      </label>
+
                       <input
                         type="tel"
-                        value={patientForm.whatsapp}
+                        value={
+                          patientForm.whatsapp
+                        }
                         onChange={(e) =>
                           updatePatientField(
                             "whatsapp",
@@ -1131,10 +2559,15 @@ export default function PatientManagement() {
                     </div>
 
                     <div className="pm-field">
-                      <label>Email</label>
+                      <label>
+                        Email
+                      </label>
+
                       <input
                         type="email"
-                        value={patientForm.email}
+                        value={
+                          patientForm.email
+                        }
                         onChange={(e) =>
                           updatePatientField(
                             "email",
@@ -1146,10 +2579,15 @@ export default function PatientManagement() {
                     </div>
 
                     <div className="pm-field">
-                      <label>Date of Birth</label>
+                      <label>
+                        Date of Birth
+                      </label>
+
                       <input
                         type="date"
-                        value={patientForm.dob}
+                        value={
+                          patientForm.dob
+                        }
                         onChange={(e) =>
                           updatePatientField(
                             "dob",
@@ -1160,11 +2598,16 @@ export default function PatientManagement() {
                     </div>
 
                     <div className="pm-field">
-                      <label>Age</label>
+                      <label>
+                        Age
+                      </label>
+
                       <input
                         type="number"
                         min="0"
-                        value={patientForm.age}
+                        value={
+                          patientForm.age
+                        }
                         onChange={(e) =>
                           updatePatientField(
                             "age",
@@ -1176,9 +2619,14 @@ export default function PatientManagement() {
                     </div>
 
                     <div className="pm-field">
-                      <label>Gender</label>
+                      <label>
+                        Gender
+                      </label>
+
                       <select
-                        value={patientForm.gender}
+                        value={
+                          patientForm.gender
+                        }
                         onChange={(e) =>
                           updatePatientField(
                             "gender",
@@ -1186,17 +2634,33 @@ export default function PatientManagement() {
                           )
                         }
                       >
-                        <option value="">Select Gender</option>
-                        <option value="Male">Male</option>
-                        <option value="Female">Female</option>
-                        <option value="Other">Other</option>
+                        <option value="">
+                          Select Gender
+                        </option>
+
+                        <option value="Male">
+                          Male
+                        </option>
+
+                        <option value="Female">
+                          Female
+                        </option>
+
+                        <option value="Other">
+                          Other
+                        </option>
                       </select>
                     </div>
 
                     <div className="pm-field">
-                      <label>Blood Group</label>
+                      <label>
+                        Blood Group
+                      </label>
+
                       <select
-                        value={patientForm.bloodGroup}
+                        value={
+                          patientForm.bloodGroup
+                        }
                         onChange={(e) =>
                           updatePatientField(
                             "bloodGroup",
@@ -1204,23 +2668,54 @@ export default function PatientManagement() {
                           )
                         }
                       >
-                        <option value="">Select Blood Group</option>
-                        <option value="A+">A+</option>
-                        <option value="A-">A-</option>
-                        <option value="B+">B+</option>
-                        <option value="B-">B-</option>
-                        <option value="AB+">AB+</option>
-                        <option value="AB-">AB-</option>
-                        <option value="O+">O+</option>
-                        <option value="O-">O-</option>
+                        <option value="">
+                          Select Blood Group
+                        </option>
+
+                        <option value="A+">
+                          A+
+                        </option>
+
+                        <option value="A-">
+                          A-
+                        </option>
+
+                        <option value="B+">
+                          B+
+                        </option>
+
+                        <option value="B-">
+                          B-
+                        </option>
+
+                        <option value="AB+">
+                          AB+
+                        </option>
+
+                        <option value="AB-">
+                          AB-
+                        </option>
+
+                        <option value="O+">
+                          O+
+                        </option>
+
+                        <option value="O-">
+                          O-
+                        </option>
                       </select>
                     </div>
 
                     <div className="pm-field">
-                      <label>Occupation</label>
+                      <label>
+                        Occupation
+                      </label>
+
                       <input
                         type="text"
-                        value={patientForm.occupation}
+                        value={
+                          patientForm.occupation
+                        }
                         onChange={(e) =>
                           updatePatientField(
                             "occupation",
@@ -1230,17 +2725,29 @@ export default function PatientManagement() {
                         placeholder="Occupation"
                       />
                     </div>
+
                   </div>
                 </div>
 
+                {/* ADDRESS */}
+
                 <div className="pm-form-section">
-                  <h3>📍 Address & Emergency Contact</h3>
+
+                  <h3>
+                    📍 Address & Emergency Contact
+                  </h3>
 
                   <div className="pm-form-grid">
+
                     <div className="pm-field pm-field-full">
-                      <label>Address</label>
+                      <label>
+                        Address
+                      </label>
+
                       <textarea
-                        value={patientForm.address}
+                        value={
+                          patientForm.address
+                        }
                         onChange={(e) =>
                           updatePatientField(
                             "address",
@@ -1253,10 +2760,15 @@ export default function PatientManagement() {
                     </div>
 
                     <div className="pm-field">
-                      <label>City</label>
+                      <label>
+                        City
+                      </label>
+
                       <input
                         type="text"
-                        value={patientForm.city}
+                        value={
+                          patientForm.city
+                        }
                         onChange={(e) =>
                           updatePatientField(
                             "city",
@@ -1268,10 +2780,15 @@ export default function PatientManagement() {
                     </div>
 
                     <div className="pm-field">
-                      <label>State</label>
+                      <label>
+                        State
+                      </label>
+
                       <input
                         type="text"
-                        value={patientForm.state}
+                        value={
+                          patientForm.state
+                        }
                         onChange={(e) =>
                           updatePatientField(
                             "state",
@@ -1283,10 +2800,15 @@ export default function PatientManagement() {
                     </div>
 
                     <div className="pm-field">
-                      <label>Pincode</label>
+                      <label>
+                        Pincode
+                      </label>
+
                       <input
                         type="text"
-                        value={patientForm.pincode}
+                        value={
+                          patientForm.pincode
+                        }
                         onChange={(e) =>
                           updatePatientField(
                             "pincode",
@@ -1298,10 +2820,15 @@ export default function PatientManagement() {
                     </div>
 
                     <div className="pm-field">
-                      <label>Emergency Contact Name</label>
+                      <label>
+                        Emergency Contact Name
+                      </label>
+
                       <input
                         type="text"
-                        value={patientForm.emergencyName}
+                        value={
+                          patientForm.emergencyName
+                        }
                         onChange={(e) =>
                           updatePatientField(
                             "emergencyName",
@@ -1313,10 +2840,15 @@ export default function PatientManagement() {
                     </div>
 
                     <div className="pm-field">
-                      <label>Emergency Mobile</label>
+                      <label>
+                        Emergency Mobile
+                      </label>
+
                       <input
                         type="tel"
-                        value={patientForm.emergencyMobile}
+                        value={
+                          patientForm.emergencyMobile
+                        }
                         onChange={(e) =>
                           updatePatientField(
                             "emergencyMobile",
@@ -1328,10 +2860,15 @@ export default function PatientManagement() {
                     </div>
 
                     <div className="pm-field">
-                      <label>Relation</label>
+                      <label>
+                        Relation
+                      </label>
+
                       <input
                         type="text"
-                        value={patientForm.emergencyRelation}
+                        value={
+                          patientForm.emergencyRelation
+                        }
                         onChange={(e) =>
                           updatePatientField(
                             "emergencyRelation",
@@ -1341,18 +2878,30 @@ export default function PatientManagement() {
                         placeholder="Father / Mother / Spouse..."
                       />
                     </div>
+
                   </div>
                 </div>
 
+                {/* CLINICAL */}
+
                 <div className="pm-form-section">
-                  <h3>🩺 Clinical Information</h3>
+
+                  <h3>
+                    🩺 Clinical Information
+                  </h3>
 
                   <div className="pm-form-grid">
+
                     <div className="pm-field">
-                      <label>Registration Date</label>
+                      <label>
+                        Registration Date
+                      </label>
+
                       <input
                         type="date"
-                        value={patientForm.registrationDate}
+                        value={
+                          patientForm.registrationDate
+                        }
                         onChange={(e) =>
                           updatePatientField(
                             "registrationDate",
@@ -1363,10 +2912,15 @@ export default function PatientManagement() {
                     </div>
 
                     <div className="pm-field">
-                      <label>First Visit Date</label>
+                      <label>
+                        First Visit Date
+                      </label>
+
                       <input
                         type="date"
-                        value={patientForm.firstVisitDate}
+                        value={
+                          patientForm.firstVisitDate
+                        }
                         onChange={(e) =>
                           updatePatientField(
                             "firstVisitDate",
@@ -1377,9 +2931,14 @@ export default function PatientManagement() {
                     </div>
 
                     <div className="pm-field pm-field-full">
-                      <label>Diagnosis / Problem</label>
+                      <label>
+                        Diagnosis / Problem
+                      </label>
+
                       <textarea
-                        value={patientForm.diagnosis}
+                        value={
+                          patientForm.diagnosis
+                        }
                         onChange={(e) =>
                           updatePatientField(
                             "diagnosis",
@@ -1392,9 +2951,14 @@ export default function PatientManagement() {
                     </div>
 
                     <div className="pm-field pm-field-full">
-                      <label>Previous Treatment / What Patient Took Before</label>
+                      <label>
+                        Previous Treatment / What Patient Took Before
+                      </label>
+
                       <textarea
-                        value={patientForm.previousTreatment}
+                        value={
+                          patientForm.previousTreatment
+                        }
                         onChange={(e) =>
                           updatePatientField(
                             "previousTreatment",
@@ -1407,9 +2971,14 @@ export default function PatientManagement() {
                     </div>
 
                     <div className="pm-field">
-                      <label>Current Treatment</label>
+                      <label>
+                        Current Treatment
+                      </label>
+
                       <select
-                        value={patientForm.currentTreatment}
+                        value={
+                          patientForm.currentTreatment
+                        }
                         onChange={(e) =>
                           updatePatientField(
                             "currentTreatment",
@@ -1417,20 +2986,32 @@ export default function PatientManagement() {
                           )
                         }
                       >
-                        <option value="">Select Treatment</option>
+                        <option value="">
+                          Select Treatment
+                        </option>
 
-                        {treatmentOptions.map((item) => (
-                          <option key={item} value={item}>
-                            {item}
-                          </option>
-                        ))}
+                        {treatmentOptions.map(
+                          (item) => (
+                            <option
+                              key={item}
+                              value={item}
+                            >
+                              {item}
+                            </option>
+                          )
+                        )}
                       </select>
                     </div>
 
                     <div className="pm-field">
-                      <label>Assigned Doctor / Therapist</label>
+                      <label>
+                        Assigned Doctor / Therapist
+                      </label>
+
                       <select
-                        value={patientForm.assignedDoctor}
+                        value={
+                          patientForm.assignedDoctor
+                        }
                         onChange={(e) =>
                           updatePatientField(
                             "assignedDoctor",
@@ -1442,18 +3023,28 @@ export default function PatientManagement() {
                           Select Doctor / Therapist
                         </option>
 
-                        {doctors.map((doctor) => (
-                          <option key={doctor} value={doctor}>
-                            {doctor}
-                          </option>
-                        ))}
+                        {doctors.map(
+                          (doctor) => (
+                            <option
+                              key={doctor}
+                              value={doctor}
+                            >
+                              {doctor}
+                            </option>
+                          )
+                        )}
                       </select>
                     </div>
 
                     <div className="pm-field pm-field-full">
-                      <label>Current Treatment Plan</label>
+                      <label>
+                        Current Treatment Plan
+                      </label>
+
                       <textarea
-                        value={patientForm.treatmentPlan}
+                        value={
+                          patientForm.treatmentPlan
+                        }
                         onChange={(e) =>
                           updatePatientField(
                             "treatmentPlan",
@@ -1466,11 +3057,16 @@ export default function PatientManagement() {
                     </div>
 
                     <div className="pm-field">
-                      <label>Sessions Planned</label>
+                      <label>
+                        Sessions Planned
+                      </label>
+
                       <input
                         type="number"
                         min="0"
-                        value={patientForm.sessionsPlanned}
+                        value={
+                          patientForm.sessionsPlanned
+                        }
                         onChange={(e) =>
                           updatePatientField(
                             "sessionsPlanned",
@@ -1482,11 +3078,16 @@ export default function PatientManagement() {
                     </div>
 
                     <div className="pm-field">
-                      <label>Sessions Completed</label>
+                      <label>
+                        Sessions Completed
+                      </label>
+
                       <input
                         type="number"
                         min="0"
-                        value={patientForm.sessionsCompleted}
+                        value={
+                          patientForm.sessionsCompleted
+                        }
                         onChange={(e) =>
                           updatePatientField(
                             "sessionsCompleted",
@@ -1498,10 +3099,15 @@ export default function PatientManagement() {
                     </div>
 
                     <div className="pm-field">
-                      <label>Next Follow-up</label>
+                      <label>
+                        Next Follow-up
+                      </label>
+
                       <input
                         type="date"
-                        value={patientForm.nextFollowUpDate}
+                        value={
+                          patientForm.nextFollowUpDate
+                        }
                         onChange={(e) =>
                           updatePatientField(
                             "nextFollowUpDate",
@@ -1512,9 +3118,14 @@ export default function PatientManagement() {
                     </div>
 
                     <div className="pm-field">
-                      <label>Patient Status</label>
+                      <label>
+                        Patient Status
+                      </label>
+
                       <select
-                        value={patientForm.status}
+                        value={
+                          patientForm.status
+                        }
                         onChange={(e) =>
                           updatePatientField(
                             "status",
@@ -1522,22 +3133,42 @@ export default function PatientManagement() {
                           )
                         }
                       >
-                        <option value="Active">Active</option>
-                        <option value="Inactive">Inactive</option>
-                        <option value="Completed">Completed</option>
+                        <option value="Active">
+                          Active
+                        </option>
+
+                        <option value="Inactive">
+                          Inactive
+                        </option>
+
+                        <option value="Completed">
+                          Completed
+                        </option>
                       </select>
                     </div>
+
                   </div>
                 </div>
 
+                {/* MEDICAL */}
+
                 <div className="pm-form-section">
-                  <h3>💊 Medical Details</h3>
+
+                  <h3>
+                    💊 Medical Details
+                  </h3>
 
                   <div className="pm-form-grid">
+
                     <div className="pm-field pm-field-full">
-                      <label>Allergies</label>
+                      <label>
+                        Allergies
+                      </label>
+
                       <textarea
-                        value={patientForm.allergies}
+                        value={
+                          patientForm.allergies
+                        }
                         onChange={(e) =>
                           updatePatientField(
                             "allergies",
@@ -1550,9 +3181,14 @@ export default function PatientManagement() {
                     </div>
 
                     <div className="pm-field pm-field-full">
-                      <label>Current Medicines</label>
+                      <label>
+                        Current Medicines
+                      </label>
+
                       <textarea
-                        value={patientForm.medications}
+                        value={
+                          patientForm.medications
+                        }
                         onChange={(e) =>
                           updatePatientField(
                             "medications",
@@ -1565,9 +3201,14 @@ export default function PatientManagement() {
                     </div>
 
                     <div className="pm-field pm-field-full">
-                      <label>Medical History</label>
+                      <label>
+                        Medical History
+                      </label>
+
                       <textarea
-                        value={patientForm.medicalHistory}
+                        value={
+                          patientForm.medicalHistory
+                        }
                         onChange={(e) =>
                           updatePatientField(
                             "medicalHistory",
@@ -1580,9 +3221,14 @@ export default function PatientManagement() {
                     </div>
 
                     <div className="pm-field pm-field-full">
-                      <label>General Notes</label>
+                      <label>
+                        General Notes
+                      </label>
+
                       <textarea
-                        value={patientForm.notes}
+                        value={
+                          patientForm.notes
+                        }
                         onChange={(e) =>
                           updatePatientField(
                             "notes",
@@ -1593,15 +3239,20 @@ export default function PatientManagement() {
                         rows="3"
                       />
                     </div>
+
                   </div>
                 </div>
+
               </div>
 
               <div className="pm-modal-footer">
+
                 <button
                   type="button"
                   className="pm-btn pm-btn-light"
-                  onClick={closePatientModal}
+                  onClick={
+                    closePatientModal
+                  }
                 >
                   Cancel
                 </button>
@@ -1609,652 +3260,1110 @@ export default function PatientManagement() {
                 <button
                   type="submit"
                   className="pm-btn pm-btn-primary"
+                  disabled={saving}
                 >
-                  {editingPatient
+                  {saving
+                    ? "Saving..."
+                    : editingPatient
                     ? "Save Changes"
                     : "Create Patient"}
                 </button>
+
               </div>
+
             </form>
           </div>
         </div>
       )}
 
-      {/* ADD TREATMENT MODAL */}
-      {showTreatmentModal && selectedPatient && (
-        <div
-          className="pm-modal-overlay"
-          onMouseDown={(e) => {
-            if (e.target === e.currentTarget) {
-              closeTreatmentModal();
-            }
-          }}
-        >
-          <div className="pm-modal">
-            <div className="pm-modal-header">
-              <div>
-                <h2>Add Treatment Record</h2>
+      {/* =================================================
+          ADD TREATMENT MODAL
+      ================================================= */}
 
-                <p>
-                  {selectedPatient.patientId} •{" "}
-                  {selectedPatient.name}
-                </p>
-              </div>
+      {showTreatmentModal &&
+        selectedPatient && (
+          <div
+            className="pm-modal-overlay"
+            onMouseDown={(e) => {
+              if (
+                e.target ===
+                e.currentTarget
+              ) {
+                closeTreatmentModal();
+              }
+            }}
+          >
 
-              <button
-                className="pm-close-btn"
-                onClick={closeTreatmentModal}
-              >
-                ×
-              </button>
-            </div>
+            <div className="pm-modal">
 
-            <form onSubmit={saveTreatment}>
-              <div className="pm-modal-body">
-                <div className="pm-form-grid">
-                  <div className="pm-field">
-                    <label>Treatment Date *</label>
-                    <input
-                      type="date"
-                      value={treatmentForm.date}
-                      onChange={(e) =>
-                        setTreatmentForm((prev) => ({
-                          ...prev,
-                          date: e.target.value,
-                        }))
-                      }
-                      required
-                    />
-                  </div>
-
-                  <div className="pm-field">
-                    <label>Treatment / Session *</label>
-                    <select
-                      value={treatmentForm.treatment}
-                      onChange={(e) =>
-                        setTreatmentForm((prev) => ({
-                          ...prev,
-                          treatment: e.target.value,
-                        }))
-                      }
-                      required
-                    >
-                      <option value="">
-                        Select Treatment
-                      </option>
-
-                      {treatmentOptions.map((item) => (
-                        <option key={item} value={item}>
-                          {item}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div className="pm-field">
-                    <label>Doctor / Therapist *</label>
-                    <select
-                      value={treatmentForm.doctor}
-                      onChange={(e) =>
-                        setTreatmentForm((prev) => ({
-                          ...prev,
-                          doctor: e.target.value,
-                        }))
-                      }
-                      required
-                    >
-                      <option value="">
-                        Select Doctor
-                      </option>
-
-                      {doctors.map((doctor) => (
-                        <option key={doctor} value={doctor}>
-                          {doctor}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div className="pm-field">
-                    <label>Session Number</label>
-                    <input
-                      type="number"
-                      min="1"
-                      value={treatmentForm.sessionNumber}
-                      onChange={(e) =>
-                        setTreatmentForm((prev) => ({
-                          ...prev,
-                          sessionNumber: e.target.value,
-                        }))
-                      }
-                      placeholder="e.g. 4"
-                    />
-                  </div>
-
-                  <div className="pm-field pm-field-full">
-                    <label>Observation</label>
-                    <textarea
-                      value={treatmentForm.observation}
-                      onChange={(e) =>
-                        setTreatmentForm((prev) => ({
-                          ...prev,
-                          observation: e.target.value,
-                        }))
-                      }
-                      placeholder="Treatment observation / patient response"
-                      rows="4"
-                    />
-                  </div>
-
-                  <div className="pm-field pm-field-full">
-                    <label>Treatment Notes</label>
-                    <textarea
-                      value={treatmentForm.notes}
-                      onChange={(e) =>
-                        setTreatmentForm((prev) => ({
-                          ...prev,
-                          notes: e.target.value,
-                        }))
-                      }
-                      placeholder="Additional treatment notes"
-                      rows="3"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              <div className="pm-modal-footer">
-                <button
-                  type="button"
-                  className="pm-btn pm-btn-light"
-                  onClick={closeTreatmentModal}
-                >
-                  Cancel
-                </button>
-
-                <button
-                  type="submit"
-                  className="pm-btn pm-btn-primary"
-                >
-                  Save Treatment
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* PATIENT PROFILE */}
-      {showProfile && selectedPatient && (
-        <div
-          className="pm-modal-overlay"
-          onMouseDown={(e) => {
-            if (e.target === e.currentTarget) {
-              setShowProfile(false);
-            }
-          }}
-        >
-          <div className="pm-modal pm-profile-modal">
-            <div className="pm-profile-header">
-              <div className="pm-profile-person">
-                <div className="pm-profile-avatar">
-                  {String(selectedPatient.name || "?")
-                    .charAt(0)
-                    .toUpperCase()}
-                </div>
+              <div className="pm-modal-header">
 
                 <div>
-                  <div className="pm-profile-id">
-                    {selectedPatient.patientId}
-                  </div>
 
-                  <h2>{selectedPatient.name}</h2>
+                  <h2>
+                    Add Treatment Record
+                  </h2>
 
                   <p>
-                    {selectedPatient.mobile || "-"}
-                    {selectedPatient.age
-                      ? ` • ${selectedPatient.age} years`
-                      : ""}
-                    {selectedPatient.gender
-                      ? ` • ${selectedPatient.gender}`
-                      : ""}
+                    {
+                      selectedPatient.patientId
+                    }{" "}
+                    •{" "}
+                    {
+                      selectedPatient.name
+                    }
                   </p>
+
                 </div>
-              </div>
-
-              <div className="pm-profile-header-actions">
-                <button
-                  className="pm-btn pm-btn-secondary"
-                  onClick={() =>
-                    openEditPatient(selectedPatient)
-                  }
-                >
-                  ✏️ Edit
-                </button>
 
                 <button
+                  type="button"
                   className="pm-close-btn"
-                  onClick={() => setShowProfile(false)}
+                  onClick={
+                    closeTreatmentModal
+                  }
                 >
                   ×
                 </button>
+
               </div>
-            </div>
 
-            <div className="pm-profile-tabs">
-              {[
-                "Overview",
-                "Treatment History",
-                "Appointments",
-                "Timeline",
-                "Medical",
-                "Notes",
-              ].map((tab) => (
-                <button
-                  key={tab}
-                  className={
-                    profileTab === tab ? "active" : ""
-                  }
-                  onClick={() => setProfileTab(tab)}
-                >
-                  {tab}
-                </button>
-              ))}
-            </div>
+              <form
+                onSubmit={
+                  saveTreatment
+                }
+              >
 
-            <div className="pm-profile-body">
-              {/* OVERVIEW */}
-              {profileTab === "Overview" && (
-                <>
-                  <div className="pm-profile-stat-grid">
-                    <div>
-                      <span>Treatments</span>
-                      <strong>{patientTreatments.length}</strong>
-                    </div>
+                <div className="pm-modal-body">
 
-                    <div>
-                      <span>Appointments</span>
-                      <strong>
-                        {selectedPatientAppointments.length}
-                      </strong>
-                    </div>
+                  <div className="pm-form-grid">
 
-                    <div>
-                      <span>Sessions Completed</span>
-                      <strong>
-                        {selectedPatient.sessionsCompleted || 0}
-                      </strong>
-                    </div>
+                    <div className="pm-field">
+                      <label>
+                        Treatment Date *
+                      </label>
 
-                    <div>
-                      <span>Sessions Planned</span>
-                      <strong>
-                        {selectedPatient.sessionsPlanned || 0}
-                      </strong>
-                    </div>
-                  </div>
-
-                  <div className="pm-info-grid">
-                    <div className="pm-info-card">
-                      <h3>Personal Information</h3>
-
-                      <InfoRow
-                        label="Patient ID"
-                        value={selectedPatient.patientId}
-                      />
-                      <InfoRow
-                        label="Name"
-                        value={selectedPatient.name}
-                      />
-                      <InfoRow
-                        label="Mobile"
-                        value={selectedPatient.mobile}
-                      />
-                      <InfoRow
-                        label="WhatsApp"
-                        value={selectedPatient.whatsapp}
-                      />
-                      <InfoRow
-                        label="Email"
-                        value={selectedPatient.email}
-                      />
-                      <InfoRow
-                        label="DOB"
-                        value={formatDate(selectedPatient.dob)}
-                      />
-                      <InfoRow
-                        label="Age"
+                      <input
+                        type="date"
                         value={
-                          selectedPatient.age
-                            ? `${selectedPatient.age} years`
-                            : ""
+                          treatmentForm.date
                         }
-                      />
-                      <InfoRow
-                        label="Gender"
-                        value={selectedPatient.gender}
-                      />
-                      <InfoRow
-                        label="Blood Group"
-                        value={selectedPatient.bloodGroup}
+                        onChange={(e) =>
+                          setTreatmentForm(
+                            (prev) => ({
+                              ...prev,
+                              date:
+                                e.target
+                                  .value,
+                            })
+                          )
+                        }
+                        required
                       />
                     </div>
 
-                    <div className="pm-info-card">
-                      <h3>Clinical Information</h3>
+                    <div className="pm-field">
+                      <label>
+                        Treatment / Session *
+                      </label>
 
-                      <InfoRow
-                        label="Diagnosis"
-                        value={selectedPatient.diagnosis}
-                      />
-                      <InfoRow
-                        label="Current Treatment"
-                        value={selectedPatient.currentTreatment}
-                      />
-                      <InfoRow
-                        label="Doctor"
-                        value={selectedPatient.assignedDoctor}
-                      />
-                      <InfoRow
-                        label="First Visit"
-                        value={formatDate(
-                          selectedPatient.firstVisitDate
+                      <select
+                        value={
+                          treatmentForm.treatment
+                        }
+                        onChange={(e) =>
+                          setTreatmentForm(
+                            (prev) => ({
+                              ...prev,
+                              treatment:
+                                e.target
+                                  .value,
+                            })
+                          )
+                        }
+                        required
+                      >
+                        <option value="">
+                          Select Treatment
+                        </option>
+
+                        {treatmentOptions.map(
+                          (item) => (
+                            <option
+                              key={item}
+                              value={item}
+                            >
+                              {item}
+                            </option>
+                          )
                         )}
-                      />
-                      <InfoRow
-                        label="Next Follow-up"
-                        value={formatDate(
-                          selectedPatient.nextFollowUpDate
+                      </select>
+                    </div>
+
+                    <div className="pm-field">
+                      <label>
+                        Doctor / Therapist *
+                      </label>
+
+                      <select
+                        value={
+                          treatmentForm.doctor
+                        }
+                        onChange={(e) =>
+                          setTreatmentForm(
+                            (prev) => ({
+                              ...prev,
+                              doctor:
+                                e.target
+                                  .value,
+                            })
+                          )
+                        }
+                        required
+                      >
+                        <option value="">
+                          Select Doctor
+                        </option>
+
+                        {doctors.map(
+                          (doctor) => (
+                            <option
+                              key={doctor}
+                              value={doctor}
+                            >
+                              {doctor}
+                            </option>
+                          )
                         )}
-                      />
-                      <InfoRow
-                        label="Status"
-                        value={selectedPatient.status}
-                      />
-                      <InfoRow
-                        label="Registration"
-                        value={formatDate(
-                          selectedPatient.registrationDate
-                        )}
+                      </select>
+                    </div>
+
+                    <div className="pm-field">
+                      <label>
+                        Session Number
+                      </label>
+
+                      <input
+                        type="number"
+                        min="1"
+                        value={
+                          treatmentForm.sessionNumber
+                        }
+                        onChange={(e) =>
+                          setTreatmentForm(
+                            (prev) => ({
+                              ...prev,
+                              sessionNumber:
+                                e.target
+                                  .value,
+                            })
+                          )
+                        }
+                        placeholder="e.g. 4"
                       />
                     </div>
 
-                    <div className="pm-info-card">
-                      <h3>Emergency Contact</h3>
+                    <div className="pm-field pm-field-full">
+                      <label>
+                        Observation
+                      </label>
 
-                      <InfoRow
-                        label="Name"
-                        value={selectedPatient.emergencyName}
-                      />
-                      <InfoRow
-                        label="Mobile"
-                        value={selectedPatient.emergencyMobile}
-                      />
-                      <InfoRow
-                        label="Relation"
-                        value={selectedPatient.emergencyRelation}
+                      <textarea
+                        value={
+                          treatmentForm.observation
+                        }
+                        onChange={(e) =>
+                          setTreatmentForm(
+                            (prev) => ({
+                              ...prev,
+                              observation:
+                                e.target
+                                  .value,
+                            })
+                          )
+                        }
+                        placeholder="Treatment observation / patient response"
+                        rows="4"
                       />
                     </div>
 
-                    <div className="pm-info-card">
-                      <h3>Address</h3>
+                    <div className="pm-field pm-field-full">
+                      <label>
+                        Treatment Notes
+                      </label>
 
-                      <p className="pm-address-text">
-                        {selectedPatient.address || "Not added"}
-                      </p>
-
-                      <InfoRow
-                        label="City"
-                        value={selectedPatient.city}
-                      />
-                      <InfoRow
-                        label="State"
-                        value={selectedPatient.state}
-                      />
-                      <InfoRow
-                        label="Pincode"
-                        value={selectedPatient.pincode}
+                      <textarea
+                        value={
+                          treatmentForm.notes
+                        }
+                        onChange={(e) =>
+                          setTreatmentForm(
+                            (prev) => ({
+                              ...prev,
+                              notes:
+                                e.target
+                                  .value,
+                            })
+                          )
+                        }
+                        placeholder="Additional treatment notes"
+                        rows="3"
                       />
                     </div>
+
                   </div>
 
-                  <div className="pm-profile-bottom-actions">
-                    <button
-                      className="pm-btn pm-btn-primary"
-                      onClick={() =>
-                        openAddTreatment(selectedPatient)
-                      }
-                    >
-                      + Add Treatment Record
-                    </button>
-
-                    <button
-                      className="pm-btn pm-btn-secondary"
-                      onClick={() =>
-                        setProfileTab("Appointments")
-                      }
-                    >
-                      📅 View Appointments
-                    </button>
-                  </div>
-                </>
-              )}
-
-              {/* TREATMENT HISTORY */}
-              {profileTab === "Treatment History" && (
-                <div>
-                  <div className="pm-section-heading">
-                    <div>
-                      <h3>Treatment History</h3>
-                      <p>
-                        Every treatment/session with doctor and
-                        observation
-                      </p>
-                    </div>
-
-                    <button
-                      className="pm-btn pm-btn-primary"
-                      onClick={() =>
-                        openAddTreatment(selectedPatient)
-                      }
-                    >
-                      + Add Treatment
-                    </button>
-                  </div>
-
-                  {patientTreatments.length === 0 ? (
-                    <div className="pm-empty">
-                      <div className="pm-empty-icon">🩺</div>
-                      <h3>No treatment records</h3>
-                      <p>
-                        Add the patient's first treatment/session
-                        record.
-                      </p>
-                    </div>
-                  ) : (
-                    <div className="pm-treatment-list">
-                      {patientTreatments.map((item) => (
-                        <div
-                          className="pm-treatment-card"
-                          key={item.id}
-                        >
-                          <div className="pm-treatment-date">
-                            <strong>
-                              {formatDate(item.date)}
-                            </strong>
-
-                            {item.sessionNumber && (
-                              <span>
-                                Session #{item.sessionNumber}
-                              </span>
-                            )}
-                          </div>
-
-                          <div className="pm-treatment-content">
-                            <h3>{item.treatment}</h3>
-
-                            <p className="pm-treatment-doctor">
-                              👨‍⚕️ {item.doctor}
-                            </p>
-
-                            {item.observation && (
-                              <p>
-                                <strong>Observation:</strong>{" "}
-                                {item.observation}
-                              </p>
-                            )}
-
-                            {item.notes && (
-                              <p>
-                                <strong>Notes:</strong>{" "}
-                                {item.notes}
-                              </p>
-                            )}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
                 </div>
-              )}
 
-              {/* APPOINTMENTS */}
-              {profileTab === "Appointments" && (
-                <AppointmentsForPatient
-                  patient={selectedPatient}
-                  appointments={appointments}
-                />
-              )}
+                <div className="pm-modal-footer">
 
-              {/* TIMELINE */}
-              {profileTab === "Timeline" && (
-                <div>
-                  <div className="pm-section-heading">
-                    <div>
-                      <h3>Complete Patient Timeline</h3>
-                      <p>
-                        Registration → Appointment → Treatment →
-                        Follow-up
-                      </p>
-                    </div>
-                  </div>
+                  <button
+                    type="button"
+                    className="pm-btn pm-btn-light"
+                    onClick={
+                      closeTreatmentModal
+                    }
+                  >
+                    Cancel
+                  </button>
 
-                  {buildTimeline().length === 0 ? (
-                    <div className="pm-empty">
-                      <div className="pm-empty-icon">🕐</div>
-                      <h3>No timeline data</h3>
-                    </div>
-                  ) : (
-                    <div className="pm-timeline">
-                      {buildTimeline().map((item) => (
-                        <div
-                          className="pm-timeline-item"
-                          key={item.id}
-                        >
-                          <div className="pm-timeline-dot" />
+                  <button
+                    type="submit"
+                    className="pm-btn pm-btn-primary"
+                    disabled={saving}
+                  >
+                    {saving
+                      ? "Saving..."
+                      : "Save Treatment"}
+                  </button>
 
-                          <div className="pm-timeline-card">
-                            <div className="pm-timeline-top">
-                              <span className="pm-timeline-type">
-                                {item.type}
-                              </span>
-
-                              <span>
-                                {formatDate(item.date)}
-                              </span>
-                            </div>
-
-                            <h3>{item.title}</h3>
-
-                            <p>{item.description}</p>
-
-                            {item.doctor && (
-                              <small>
-                                👨‍⚕️ {item.doctor}
-                              </small>
-                            )}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
                 </div>
-              )}
 
-              {/* MEDICAL */}
-              {profileTab === "Medical" && (
-                <div className="pm-info-grid">
-                  <div className="pm-info-card pm-info-card-full">
-                    <h3>Previous Treatment</h3>
-                    <p className="pm-long-text">
-                      {selectedPatient.previousTreatment ||
-                        "No previous treatment information added."}
-                    </p>
-                  </div>
+              </form>
 
-                  <div className="pm-info-card">
-                    <h3>Allergies</h3>
-                    <p className="pm-long-text">
-                      {selectedPatient.allergies || "None added"}
-                    </p>
-                  </div>
-
-                  <div className="pm-info-card">
-                    <h3>Current Medicines</h3>
-                    <p className="pm-long-text">
-                      {selectedPatient.medications ||
-                        "None added"}
-                    </p>
-                  </div>
-
-                  <div className="pm-info-card pm-info-card-full">
-                    <h3>Medical History</h3>
-                    <p className="pm-long-text">
-                      {selectedPatient.medicalHistory ||
-                        "No medical history added."}
-                    </p>
-                  </div>
-
-                  <div className="pm-info-card pm-info-card-full">
-                    <h3>Current Treatment Plan</h3>
-                    <p className="pm-long-text">
-                      {selectedPatient.treatmentPlan ||
-                        "No treatment plan added."}
-                    </p>
-                  </div>
-                </div>
-              )}
-
-              {/* NOTES */}
-              {profileTab === "Notes" && (
-                <div className="pm-notes-view">
-                  <div className="pm-note-card">
-                    <div className="pm-note-icon">📝</div>
-
-                    <div>
-                      <h3>Patient Notes</h3>
-
-                      <p>
-                        {selectedPatient.notes ||
-                          "No additional notes available for this patient."}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              )}
             </div>
           </div>
-        </div>
-      )}
+        )}
+
+      {/* =================================================
+          PATIENT PROFILE
+      ================================================= */}
+
+      {showProfile &&
+        selectedPatient && (
+          <div
+            className="pm-modal-overlay"
+            onMouseDown={(e) => {
+              if (
+                e.target ===
+                e.currentTarget
+              ) {
+                setShowProfile(false);
+              }
+            }}
+          >
+
+            <div className="pm-modal pm-profile-modal">
+
+              {/* PROFILE HEADER */}
+
+              <div className="pm-profile-header">
+
+                <div className="pm-profile-person">
+
+                  <div className="pm-profile-avatar">
+                    {String(
+                      selectedPatient.name ||
+                        "?"
+                    )
+                      .charAt(0)
+                      .toUpperCase()}
+                  </div>
+
+                  <div>
+
+                    <div className="pm-profile-id">
+                      {
+                        selectedPatient.patientId
+                      }
+                    </div>
+
+                    <h2>
+                      {
+                        selectedPatient.name
+                      }
+                    </h2>
+
+                    <p>
+                      {selectedPatient.mobile ||
+                        "-"}
+
+                      {selectedPatient.age
+                        ? ` • ${selectedPatient.age} years`
+                        : ""}
+
+                      {selectedPatient.gender
+                        ? ` • ${selectedPatient.gender}`
+                        : ""}
+                    </p>
+
+                  </div>
+
+                </div>
+
+                <div className="pm-profile-header-actions">
+
+                  <button
+                    className="pm-btn pm-btn-secondary"
+                    onClick={() =>
+                      openEditPatient(
+                        selectedPatient
+                      )
+                    }
+                  >
+                    ✏️ Edit
+                  </button>
+
+                  <button
+                    className="pm-close-btn"
+                    onClick={() =>
+                      setShowProfile(
+                        false
+                      )
+                    }
+                  >
+                    ×
+                  </button>
+
+                </div>
+
+              </div>
+
+              {/* PROFILE TABS */}
+
+              <div className="pm-profile-tabs">
+
+                {[
+                  "Overview",
+                  "Treatment History",
+                  "Appointments",
+                  "Timeline",
+                  "Medical",
+                  "Notes",
+                ].map(
+                  (tab) => (
+                    <button
+                      key={tab}
+                      className={
+                        profileTab ===
+                        tab
+                          ? "active"
+                          : ""
+                      }
+                      onClick={() =>
+                        setProfileTab(
+                          tab
+                        )
+                      }
+                    >
+                      {tab}
+                    </button>
+                  )
+                )}
+
+              </div>
+
+              {/* PROFILE BODY */}
+
+              <div className="pm-profile-body">
+
+                {/* ======================================
+                    OVERVIEW
+                ====================================== */}
+
+                {profileTab ===
+                  "Overview" && (
+                  <>
+
+                    <div className="pm-profile-stat-grid">
+
+                      <div>
+                        <span>
+                          Treatments
+                        </span>
+
+                        <strong>
+                          {
+                            patientTreatments.length
+                          }
+                        </strong>
+                      </div>
+
+                      <div>
+                        <span>
+                          Appointments
+                        </span>
+
+                        <strong>
+                          {
+                            selectedPatientAppointments.length
+                          }
+                        </strong>
+                      </div>
+
+                      <div>
+                        <span>
+                          Sessions Completed
+                        </span>
+
+                        <strong>
+                          {
+                            selectedPatient.sessionsCompleted ||
+                            0
+                          }
+                        </strong>
+                      </div>
+
+                      <div>
+                        <span>
+                          Sessions Planned
+                        </span>
+
+                        <strong>
+                          {
+                            selectedPatient.sessionsPlanned ||
+                            0
+                          }
+                        </strong>
+                      </div>
+
+                    </div>
+
+                    <div className="pm-info-grid">
+
+                      <div className="pm-info-card">
+
+                        <h3>
+                          Personal Information
+                        </h3>
+
+                        <InfoRow
+                          label="Patient ID"
+                          value={
+                            selectedPatient.patientId
+                          }
+                        />
+
+                        <InfoRow
+                          label="Name"
+                          value={
+                            selectedPatient.name
+                          }
+                        />
+
+                        <InfoRow
+                          label="Mobile"
+                          value={
+                            selectedPatient.mobile
+                          }
+                        />
+
+                        <InfoRow
+                          label="WhatsApp"
+                          value={
+                            selectedPatient.whatsapp
+                          }
+                        />
+
+                        <InfoRow
+                          label="Email"
+                          value={
+                            selectedPatient.email
+                          }
+                        />
+
+                        <InfoRow
+                          label="DOB"
+                          value={formatDate(
+                            selectedPatient.dob
+                          )}
+                        />
+
+                        <InfoRow
+                          label="Age"
+                          value={
+                            selectedPatient.age
+                              ? `${selectedPatient.age} years`
+                              : ""
+                          }
+                        />
+
+                        <InfoRow
+                          label="Gender"
+                          value={
+                            selectedPatient.gender
+                          }
+                        />
+
+                        <InfoRow
+                          label="Blood Group"
+                          value={
+                            selectedPatient.bloodGroup
+                          }
+                        />
+
+                        <InfoRow
+                          label="Occupation"
+                          value={
+                            selectedPatient.occupation
+                          }
+                        />
+
+                      </div>
+
+                      <div className="pm-info-card">
+
+                        <h3>
+                          Clinical Information
+                        </h3>
+
+                        <InfoRow
+                          label="Diagnosis"
+                          value={
+                            selectedPatient.diagnosis
+                          }
+                        />
+
+                        <InfoRow
+                          label="Current Treatment"
+                          value={
+                            selectedPatient.currentTreatment
+                          }
+                        />
+
+                        <InfoRow
+                          label="Doctor"
+                          value={
+                            selectedPatient.assignedDoctor
+                          }
+                        />
+
+                        <InfoRow
+                          label="First Visit"
+                          value={formatDate(
+                            selectedPatient.firstVisitDate
+                          )}
+                        />
+
+                        <InfoRow
+                          label="Next Follow-up"
+                          value={formatDate(
+                            selectedPatient.nextFollowUpDate
+                          )}
+                        />
+
+                        <InfoRow
+                          label="Status"
+                          value={
+                            selectedPatient.status
+                          }
+                        />
+
+                        <InfoRow
+                          label="Registration"
+                          value={formatDate(
+                            selectedPatient.registrationDate
+                          )}
+                        />
+
+                      </div>
+
+                      <div className="pm-info-card">
+
+                        <h3>
+                          Emergency Contact
+                        </h3>
+
+                        <InfoRow
+                          label="Name"
+                          value={
+                            selectedPatient.emergencyName
+                          }
+                        />
+
+                        <InfoRow
+                          label="Mobile"
+                          value={
+                            selectedPatient.emergencyMobile
+                          }
+                        />
+
+                        <InfoRow
+                          label="Relation"
+                          value={
+                            selectedPatient.emergencyRelation
+                          }
+                        />
+
+                      </div>
+
+                      <div className="pm-info-card">
+
+                        <h3>
+                          Address
+                        </h3>
+
+                        <p className="pm-address-text">
+                          {selectedPatient.address ||
+                            "Not added"}
+                        </p>
+
+                        <InfoRow
+                          label="City"
+                          value={
+                            selectedPatient.city
+                          }
+                        />
+
+                        <InfoRow
+                          label="State"
+                          value={
+                            selectedPatient.state
+                          }
+                        />
+
+                        <InfoRow
+                          label="Pincode"
+                          value={
+                            selectedPatient.pincode
+                          }
+                        />
+
+                      </div>
+
+                    </div>
+
+                    <div className="pm-profile-bottom-actions">
+
+                      <button
+                        className="pm-btn pm-btn-primary"
+                        onClick={() =>
+                          openAddTreatment(
+                            selectedPatient
+                          )
+                        }
+                      >
+                        + Add Treatment Record
+                      </button>
+
+                      <button
+                        className="pm-btn pm-btn-secondary"
+                        onClick={() =>
+                          setProfileTab(
+                            "Appointments"
+                          )
+                        }
+                      >
+                        📅 View Appointments
+                      </button>
+
+                    </div>
+
+                  </>
+                )}
+
+                {/* ======================================
+                    TREATMENT HISTORY
+                ====================================== */}
+
+                {profileTab ===
+                  "Treatment History" && (
+                  <div>
+
+                    <div className="pm-section-heading">
+
+                      <div>
+
+                        <h3>
+                          Treatment History
+                        </h3>
+
+                        <p>
+                          Every treatment/session
+                          with doctor and
+                          observation
+                        </p>
+
+                      </div>
+
+                      <button
+                        className="pm-btn pm-btn-primary"
+                        onClick={() =>
+                          openAddTreatment(
+                            selectedPatient
+                          )
+                        }
+                      >
+                        + Add Treatment
+                      </button>
+
+                    </div>
+
+                    {patientTreatments.length ===
+                    0 ? (
+                      <div className="pm-empty">
+
+                        <div className="pm-empty-icon">
+                          🩺
+                        </div>
+
+                        <h3>
+                          No treatment records
+                        </h3>
+
+                        <p>
+                          Add the patient's
+                          first treatment/session
+                          record.
+                        </p>
+
+                      </div>
+                    ) : (
+                      <div className="pm-treatment-list">
+
+                        {patientTreatments.map(
+                          (item) => (
+                            <div
+                              className="pm-treatment-card"
+                              key={
+                                item.firestoreId ||
+                                item.id
+                              }
+                            >
+
+                              <div className="pm-treatment-date">
+
+                                <strong>
+                                  {formatDate(
+                                    item.date
+                                  )}
+                                </strong>
+
+                                {item.sessionNumber && (
+                                  <span>
+                                    Session #
+                                    {
+                                      item.sessionNumber
+                                    }
+                                  </span>
+                                )}
+
+                              </div>
+
+                              <div className="pm-treatment-content">
+
+                                <h3>
+                                  {
+                                    item.treatment
+                                  }
+                                </h3>
+
+                                <p className="pm-treatment-doctor">
+                                  👨‍⚕️{" "}
+                                  {item.doctor}
+                                </p>
+
+                                {item.observation && (
+                                  <p>
+                                    <strong>
+                                      Observation:
+                                    </strong>{" "}
+                                    {
+                                      item.observation
+                                    }
+                                  </p>
+                                )}
+
+                                {item.notes && (
+                                  <p>
+                                    <strong>
+                                      Notes:
+                                    </strong>{" "}
+                                    {
+                                      item.notes
+                                    }
+                                  </p>
+                                )}
+
+                              </div>
+
+                            </div>
+                          )
+                        )}
+
+                      </div>
+                    )}
+
+                  </div>
+                )}
+
+                {/* ======================================
+                    APPOINTMENTS
+                ====================================== */}
+
+                {profileTab ===
+                  "Appointments" && (
+                  <AppointmentsForPatient
+                    patient={
+                      selectedPatient
+                    }
+                    appointments={
+                      appointments
+                    }
+                  />
+                )}
+
+                {/* ======================================
+                    TIMELINE
+                ====================================== */}
+
+                {profileTab ===
+                  "Timeline" && (
+                  <div>
+
+                    <div className="pm-section-heading">
+
+                      <div>
+
+                        <h3>
+                          Complete Patient Timeline
+                        </h3>
+
+                        <p>
+                          Registration →
+                          Appointment →
+                          Treatment →
+                          Follow-up
+                        </p>
+
+                      </div>
+
+                    </div>
+
+                    {buildTimeline()
+                      .length ===
+                    0 ? (
+                      <div className="pm-empty">
+
+                        <div className="pm-empty-icon">
+                          🕐
+                        </div>
+
+                        <h3>
+                          No timeline data
+                        </h3>
+
+                      </div>
+                    ) : (
+                      <div className="pm-timeline">
+
+                        {buildTimeline().map(
+                          (item) => (
+                            <div
+                              className="pm-timeline-item"
+                              key={
+                                item.id
+                              }
+                            >
+
+                              <div className="pm-timeline-dot" />
+
+                              <div className="pm-timeline-card">
+
+                                <div className="pm-timeline-top">
+
+                                  <span className="pm-timeline-type">
+                                    {
+                                      item.type
+                                    }
+                                  </span>
+
+                                  <span>
+                                    {formatDate(
+                                      item.date
+                                    )}
+                                  </span>
+
+                                </div>
+
+                                <h3>
+                                  {
+                                    item.title
+                                  }
+                                </h3>
+
+                                <p>
+                                  {
+                                    item.description
+                                  }
+                                </p>
+
+                                {item.doctor && (
+                                  <small>
+                                    👨‍⚕️{" "}
+                                    {
+                                      item.doctor
+                                    }
+                                  </small>
+                                )}
+
+                              </div>
+
+                            </div>
+                          )
+                        )}
+
+                      </div>
+                    )}
+
+                  </div>
+                )}
+
+                {/* ======================================
+                    MEDICAL
+                ====================================== */}
+
+                {profileTab ===
+                  "Medical" && (
+                  <div className="pm-info-grid">
+
+                    <div className="pm-info-card pm-info-card-full">
+
+                      <h3>
+                        Previous Treatment
+                      </h3>
+
+                      <p className="pm-long-text">
+                        {selectedPatient.previousTreatment ||
+                          "No previous treatment information added."}
+                      </p>
+
+                    </div>
+
+                    <div className="pm-info-card">
+
+                      <h3>
+                        Allergies
+                      </h3>
+
+                      <p className="pm-long-text">
+                        {selectedPatient.allergies ||
+                          "None added"}
+                      </p>
+
+                    </div>
+
+                    <div className="pm-info-card">
+
+                      <h3>
+                        Current Medicines
+                      </h3>
+
+                      <p className="pm-long-text">
+                        {selectedPatient.medications ||
+                          "None added"}
+                      </p>
+
+                    </div>
+
+                    <div className="pm-info-card pm-info-card-full">
+
+                      <h3>
+                        Medical History
+                      </h3>
+
+                      <p className="pm-long-text">
+                        {selectedPatient.medicalHistory ||
+                          "No medical history added."}
+                      </p>
+
+                    </div>
+
+                    <div className="pm-info-card pm-info-card-full">
+
+                      <h3>
+                        Current Treatment Plan
+                      </h3>
+
+                      <p className="pm-long-text">
+                        {selectedPatient.treatmentPlan ||
+                          "No treatment plan added."}
+                      </p>
+
+                    </div>
+
+                  </div>
+                )}
+
+                {/* ======================================
+                    NOTES
+                ====================================== */}
+
+                {profileTab ===
+                  "Notes" && (
+                  <div className="pm-notes-view">
+
+                    <div className="pm-note-card">
+
+                      <div className="pm-note-icon">
+                        📝
+                      </div>
+
+                      <div>
+
+                        <h3>
+                          Patient Notes
+                        </h3>
+
+                        <p>
+                          {selectedPatient.notes ||
+                            "No additional notes available for this patient."}
+                        </p>
+
+                      </div>
+
+                    </div>
+
+                  </div>
+                )}
+
+              </div>
+
+            </div>
+          </div>
+        )}
+
     </div>
   );
 }
 
-function InfoRow({ label, value }) {
+/* =========================================================
+   INFO ROW
+========================================================= */
+
+function InfoRow({
+  label,
+  value,
+}) {
   return (
     <div className="pm-info-row">
-      <span>{label}</span>
-      <strong>{value || "-"}</strong>
+      <span>
+        {label}
+      </span>
+
+      <strong>
+        {value || "-"}
+      </strong>
     </div>
   );
 }

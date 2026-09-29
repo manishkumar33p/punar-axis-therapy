@@ -1,6 +1,3 @@
-
-
-
 import React, { useEffect, useMemo, useState } from "react";
 import { provisionPatientPortal } from "../auth";
 import { db } from "../firebase";

@@ -15,16 +15,20 @@ import PatientLogin from "./PatientLogin/PatientLogin";
 import PatientDashboard from "./PatientDashboard/PatientDashboard";
 import PatientProtectedRoute from "./PatientProtectedRoute";
 import ManagementDashboard from "./ManagementDashboard/ManagementDashboard";
-
+import CommonLayout from "./CommonNavbar/CommonLayout";
 
 const router = createBrowserRouter([
   // =================================
   // PUBLIC WEBSITE
   // =================================
   {
-    path: "/",
-    element: <Home />,
-  },
+  path: "/",
+  element: (
+    <CommonLayout>
+      <Home />
+    </CommonLayout>
+  ),
+},
 // Vercel Firebase env update
   // =================================
   // MANAGEMENT LOGIN
@@ -38,87 +42,106 @@ const router = createBrowserRouter([
   // PROTECTED MANAGEMENT
   // =================================
   {
-    path: "/management-dashboard",
-    element: (
+  path: "/management-dashboard",
+  element: (
+    <CommonLayout>
       <ProtectedRoute>
         <ManagementDashboard />
       </ProtectedRoute>
-    ),
-  },
+    </CommonLayout>
+  ),
+},
 
   {
-    path: "/appointment",
-    element: (
+  path: "/appointment",
+  element: (
+    <CommonLayout>
       <ProtectedRoute>
         <Appointment />
       </ProtectedRoute>
-    ),
-  },
+    </CommonLayout>
+  ),
+},
 
-  {
-    path: "/appointment-details",
-    element: (
+ {
+  path: "/appointment-details",
+  element: (
+    <CommonLayout>
       <ProtectedRoute>
         <AppointmentDetails />
       </ProtectedRoute>
-    ),
-  },
+    </CommonLayout>
+  ),
+},
 
   {
-    path: "/patient-management",
-    element: (
+  path: "/patient-management",
+  element: (
+    <CommonLayout>
       <ProtectedRoute>
         <PatientManagement />
       </ProtectedRoute>
-    ),
-  },
+    </CommonLayout>
+  ),
+},
 
-  {
-    path: "/employee-attendance",
-    element: (
+ {
+  path: "/employee-attendance",
+  element: (
+    <CommonLayout>
       <ProtectedRoute>
         <EmployeeAttendance />
       </ProtectedRoute>
-    ),
-  },
+    </CommonLayout>
+  ),
+},
 
-  {
-    path: "/inventory",
-    element: (
+ {
+  path: "/inventory",
+  element: (
+    <CommonLayout>
       <ProtectedRoute>
         <Inventory />
       </ProtectedRoute>
-    ),
-  },
-
+    </CommonLayout>
+  ),
+},
   {
-    path: "/owner-dashboard",
-    element: (
+  path: "/owner-dashboard",
+  element: (
+    <CommonLayout>
       <ProtectedRoute>
         <OwnerDashboard />
       </ProtectedRoute>
-    ),
-  },
+    </CommonLayout>
+  ),
+},
 
   // =================================
   // PATIENT PORTAL LOGIN
   // =================================
-  {
-    path: "/patient-login",
-    element: <PatientLogin />,
-  },
+ {
+  path: "/patient-login",
+  element: (
+    <CommonLayout>
+      <PatientLogin />
+    </CommonLayout>
+  ),
+},
 
   // =================================
   // PROTECTED PATIENT DASHBOARD
   // =================================
-  {
-    path: "/patient-dashboard",
-    element: (
+ {
+  path: "/patient-dashboard",
+  element: (
+    <CommonLayout>
       <PatientProtectedRoute>
         <PatientDashboard />
       </PatientProtectedRoute>
-    ),
-  },
+    </CommonLayout>
+  ),
+},
 ]);
 
 

@@ -1,98 +1,6 @@
-// import logo from './logo.svg';
-// import './App.css';
-
-// function App() {
-//   return (
-//     <div className="App">
-//       <header className="App-header">
-//         <img src={logo} className="App-logo" alt="logo" />
-//         <p>
-//           Edit <code>src/App.js</code> and save to reload.
-//         </p>
-//         <a
-//           className="App-link"
-//           href="https://reactjs.org"
-//           target="_blank"
-//           rel="noopener noreferrer"
-//         >
-//           Learn React
-//         </a>
-//       </header>
-//     </div>
-//   );
-// }
-
-// export default App;
-
-
-// import Home from "./Home/Home";
-
-// function App() {
-//   return <Home />;
-// }
-
-// export default App;
-
-// import { RouterProvider } from "react-router-dom";
-// import { createBrowserRouter } from "react-router-dom";
-// import Inventory from "./Inventory/Inventory";
-// import Home from "./Home/Home";
-// import Appointment from "./Appointment/Appointment";
-// import AppointmentDetails from "./Appointment/AppointmentDetails";
-// import EmployeeAttendance from "./EmployeeAttendance/EmployeeAttendance";
-// import ClientManagement from "./ClientManagement/ClientManagement";
-// import PatientManagement from "./PatientManagement/PatientManagement";
-
-// const router = createBrowserRouter([
-//   {
-//     path: "/",
-//     element: <Home />,
-//   },
-//   {
-//     path: "/appointment",
-//     element: <Appointment />,
-//   },
-//   {
-//     path: "/appointment-details",
-//     element: <AppointmentDetails />,
-//   },
-//   {
-//     path: "/employee-attendance",
-//     element: <EmployeeAttendance />,
-//   },
-
-//     {
-//     path: "/inventory",
-//     element: <Inventory />,
-//   },
-
-//     {
-//     path: "/client-management",
-//     element: <ClientManagement />,
-//   },
-
-//    {
-//     path: "/patient-management",
-//     element: <PatientManagement />,
-//   },
-  
-// ]);
-
-// function App() {
-//   return <RouterProvider router={router} />;
-// }
-
-// export default App;
-
-
-
-
-
 import React from "react";
 import { RouterProvider, createBrowserRouter } from "react-router-dom";
-
 import Home from "./Home/Home";
-
 import Appointment from "./Appointment/Appointment";
 import AppointmentDetails from "./Appointment/AppointmentDetails";
 import EmployeeAttendance from "./EmployeeAttendance/EmployeeAttendance";
@@ -107,17 +15,21 @@ import PatientLogin from "./PatientLogin/PatientLogin";
 import PatientDashboard from "./PatientDashboard/PatientDashboard";
 import PatientProtectedRoute from "./PatientProtectedRoute";
 import ManagementDashboard from "./ManagementDashboard/ManagementDashboard";
-
+import CommonLayout from "./CommonNavbar/CommonLayout";
 
 const router = createBrowserRouter([
   // =================================
   // PUBLIC WEBSITE
   // =================================
   {
-    path: "/",
-    element: <Home />,
-  },
-
+  path: "/",
+  element: (
+    <CommonLayout>
+      <Home />
+    </CommonLayout>
+  ),
+},
+// Vercel Firebase env update
   // =================================
   // MANAGEMENT LOGIN
   // =================================
@@ -130,87 +42,106 @@ const router = createBrowserRouter([
   // PROTECTED MANAGEMENT
   // =================================
   {
-    path: "/management-dashboard",
-    element: (
+  path: "/management-dashboard",
+  element: (
+    <CommonLayout>
       <ProtectedRoute>
         <ManagementDashboard />
       </ProtectedRoute>
-    ),
-  },
+    </CommonLayout>
+  ),
+},
 
   {
-    path: "/appointment",
-    element: (
+  path: "/appointment",
+  element: (
+    <CommonLayout>
       <ProtectedRoute>
         <Appointment />
       </ProtectedRoute>
-    ),
-  },
+    </CommonLayout>
+  ),
+},
 
-  {
-    path: "/appointment-details",
-    element: (
+ {
+  path: "/appointment-details",
+  element: (
+    <CommonLayout>
       <ProtectedRoute>
         <AppointmentDetails />
       </ProtectedRoute>
-    ),
-  },
+    </CommonLayout>
+  ),
+},
 
   {
-    path: "/patient-management",
-    element: (
+  path: "/patient-management",
+  element: (
+    <CommonLayout>
       <ProtectedRoute>
         <PatientManagement />
       </ProtectedRoute>
-    ),
-  },
+    </CommonLayout>
+  ),
+},
 
-  {
-    path: "/employee-attendance",
-    element: (
+ {
+  path: "/employee-attendance",
+  element: (
+    <CommonLayout>
       <ProtectedRoute>
         <EmployeeAttendance />
       </ProtectedRoute>
-    ),
-  },
+    </CommonLayout>
+  ),
+},
 
-  {
-    path: "/inventory",
-    element: (
+ {
+  path: "/inventory",
+  element: (
+    <CommonLayout>
       <ProtectedRoute>
         <Inventory />
       </ProtectedRoute>
-    ),
-  },
-
+    </CommonLayout>
+  ),
+},
   {
-    path: "/owner-dashboard",
-    element: (
+  path: "/owner-dashboard",
+  element: (
+    <CommonLayout>
       <ProtectedRoute>
         <OwnerDashboard />
       </ProtectedRoute>
-    ),
-  },
+    </CommonLayout>
+  ),
+},
 
   // =================================
   // PATIENT PORTAL LOGIN
   // =================================
-  {
-    path: "/patient-login",
-    element: <PatientLogin />,
-  },
+ {
+  path: "/patient-login",
+  element: (
+    <CommonLayout>
+      <PatientLogin />
+    </CommonLayout>
+  ),
+},
 
   // =================================
   // PROTECTED PATIENT DASHBOARD
   // =================================
-  {
-    path: "/patient-dashboard",
-    element: (
+ {
+  path: "/patient-dashboard",
+  element: (
+    <CommonLayout>
       <PatientProtectedRoute>
         <PatientDashboard />
       </PatientProtectedRoute>
-    ),
-  },
+    </CommonLayout>
+  ),
+},
 ]);
 
 

@@ -45,9 +45,14 @@ function ManagementLogin() {
   };
 
   return (
+
+
+    
     <div className="management-login-page">
       <div className="management-login-card">
         <div className="management-login-logo">
+
+          
           <div className="management-logo-icon">P</div>
           <div>
             <h1>PUNAR AXIS</h1>

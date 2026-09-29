@@ -2030,7 +2030,10 @@ function AppointmentDetails() {
     return slots;
   };
 
-  const doctors = [
+  
+
+  const doctors = useMemo(
+  () => [
     {
       id: "DOC001",
       name: "Dr. Vikas",
@@ -2049,7 +2052,9 @@ function AppointmentDetails() {
       specialty: "Ayurvedic Specialist",
       slots: generateSlots(9, 30, 17, 30),
     },
-  ];
+  ],
+  []
+);
 
   /* =======================================================
      STATE
@@ -2538,9 +2543,7 @@ function AppointmentDetails() {
         ) ||
         null
       );
-    }, [
-      rescheduleAppointment,
-    ]);
+    }, [rescheduleAppointment, doctors]);
 
   const availableSlots =
     selectedDoctor?.slots || [];

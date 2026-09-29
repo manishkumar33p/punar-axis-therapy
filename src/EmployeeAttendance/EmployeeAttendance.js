@@ -162,9 +162,9 @@ function EmployeeAttendance() {
     });
   }, [attendance, searchDate, searchEmployee]);
 
-  const selectedEmployeeForCalendar = employees.find(
-    (employee) => employee.id === searchEmployee
-  );
+  // const selectedEmployeeForCalendar = employees.find(
+  //   (employee) => employee.id === searchEmployee
+  // );
 
   const searchedEmployeeRecords = useMemo(() => {
     const value = searchEmployee.trim().toLowerCase();
@@ -548,16 +548,16 @@ function EmployeeAttendance() {
     );
   };
 
-  const getEmployeeRecordForDate = (
-    employeeId,
-    date
-  ) => {
-    return attendance.find(
-      (item) =>
-        item.employeeId === employeeId &&
-        item.date === date
-    );
-  };
+  // const getEmployeeRecordForDate = (
+  //   employeeId,
+  //   date
+  // ) => {
+  //   return attendance.find(
+  //     (item) =>
+  //       item.employeeId === employeeId &&
+  //       item.date === date
+  //   );
+  // };
 
   const getDaysInMonth = (year, month) => {
     return new Date(year, month + 1, 0).getDate();

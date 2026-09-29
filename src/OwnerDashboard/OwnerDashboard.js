@@ -1786,29 +1786,29 @@ function formatDate(value) {
 }
 
 
-function getDateObject(value) {
-  if (!value) return null;
+// function getDateObject(value) {
+//   if (!value) return null;
 
-  if (
-    value &&
-    typeof value === "object" &&
-    typeof value.toDate === "function"
-  ) {
-    try {
-      return value.toDate();
-    } catch (error) {
-      return null;
-    }
-  }
+//   if (
+//     value &&
+//     typeof value === "object" &&
+//     typeof value.toDate === "function"
+//   ) {
+//     try {
+//       return value.toDate();
+//     } catch (error) {
+//       return null;
+//     }
+//   }
 
-  const date = new Date(value);
+//   const date = new Date(value);
 
-  if (Number.isNaN(date.getTime())) {
-    return null;
-  }
+//   if (Number.isNaN(date.getTime())) {
+//     return null;
+//   }
 
-  return date;
-}
+//   return date;
+// }
 
 
 /* =========================================================

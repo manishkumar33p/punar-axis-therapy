@@ -82,7 +82,6 @@ const treatmentOptions = [
   "Integrated Physiotherapy",
   "Ayurvedic",
   "Integrated Ayurvedic",
- ,
   "Sports Rehab",
   
   "Other",

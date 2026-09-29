@@ -105,13 +105,13 @@ import { getFirestore } from "firebase/firestore";
 */
 
 export const firebaseConfig = {
-  apiKey: "AIzaSyC7QcCaz9tgerunsQ81e96l48omyQJdlzM",
-  authDomain: "punar-axis-clinic.firebaseapp.com",
-  projectId: "punar-axis-clinic",
-  storageBucket: "punar-axis-clinic.firebasestorage.app",
-  messagingSenderId: "231886698174",
-  appId: "1:231886698174:web:25908fbce4c63b7f4910ef",
-  measurementId: "G-V1ND8MSPR1",
+  apiKey: process.env.REACT_APP_FIREBASE_API_KEY,
+  authDomain: process.env.REACT_APP_FIREBASE_AUTH_DOMAIN,
+  projectId: process.env.REACT_APP_FIREBASE_PROJECT_ID,
+  storageBucket: process.env.REACT_APP_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: process.env.REACT_APP_FIREBASE_MESSAGING_SENDER_ID,
+  appId: process.env.REACT_APP_FIREBASE_APP_ID,
+  measurementId: process.env.REACT_APP_FIREBASE_MEASUREMENT_ID,
 };
 
 /*

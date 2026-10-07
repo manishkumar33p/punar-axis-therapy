@@ -2305,9 +2305,9 @@ const generateEmployeeId = (employees) => {
   return `EMP-${String(nextNumber).padStart(4, "0")}`;
 };
 
-const getDaysInMonth = (year, month) => {
-  return new Date(year, month + 1, 0).getDate();
-};
+// const getDaysInMonth = (year, month) => {
+//   return new Date(year, month + 1, 0).getDate();
+// };
 
 function EmployeeAttendance() {
   const [employees, setEmployees] = useState([]);

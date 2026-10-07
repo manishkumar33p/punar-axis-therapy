@@ -2493,7 +2493,7 @@ const [selectedEmployee, setSelectedEmployee] = useState("");
     if (loginMode === "admin") {
       if (
         loginId.trim() === "admin" &&
-        loginPassword === "admin123"
+        loginPassword === "PunarUd"
       ) {
         setIsAdminLoggedIn(true);
         setLoggedEmployee(null);
@@ -4084,13 +4084,7 @@ const salaryData = useMemo(() => {
                 Demo Admin Login
               </strong>
 
-              <span>
-                Username: admin
-              </span>
-
-              <span>
-                Password: admin123
-              </span>
+              
             </div>
           )}
         </div>

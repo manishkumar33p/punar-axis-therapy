@@ -2412,11 +2412,40 @@ const [selectedEmployee, setSelectedEmployee] = useState("");
 
   const today = getToday();
 
+  // const todayAttendance = useMemo(() => {
+  //   return attendance.filter(
+  //     (item) => item.date === today
+  //   );
+  // }, [attendance, today]);
+
   const todayAttendance = useMemo(() => {
-    return attendance.filter(
-      (item) => item.date === today
-    );
-  }, [attendance, today]);
+  const markedAttendance = attendance.filter(
+    (item) => item.date === today
+  );
+
+  const absentEmployees = employees
+    .filter(
+      (employee) =>
+        !attendance.some(
+          (item) =>
+            item.employeeId === employee.id &&
+            item.date === today
+        )
+    )
+    .map((employee) => ({
+      id: `absent-${employee.id}-${today}`,
+      employeeId: employee.id,
+      employeeName: employee.name,
+      date: today,
+      type: "Absent",
+      isLate: false,
+      lateMinutes: 0,
+      shortHours: false,
+      workingHours: "",
+    }));
+
+  return [...markedAttendance, ...absentEmployees];
+}, [attendance, employees, today]);
 
   const presentToday = todayAttendance.filter(
     (item) => item.type === "Present"
@@ -4081,7 +4110,7 @@ const salaryData = useMemo(() => {
           {loginMode === "admin" && (
             <div className="demo-login">
               <strong>
-                Demo Admin Login
+                Welcome Admin 
               </strong>
 
               

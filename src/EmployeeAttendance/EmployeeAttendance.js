@@ -2379,7 +2379,7 @@ function EmployeeAttendance() {
 
   const [selectedSalaryEmployee, setSelectedSalaryEmployee] =
     useState("");
-const [selectedEmployee, setSelectedEmployee] = useState("");
+// const [selectedEmployee, setSelectedEmployee] = useState("");
 
 const [selectedSalaryMonth, setSelectedSalaryMonth] = useState(() => {
   const now = new Date();
@@ -4062,7 +4062,8 @@ const month = selectedMonthNumber - 1;
     finalSalary: payableSalary,
     netSalary: payableSalary,
   };
-}, [selectedSalaryEmployee, employees, attendance]);
+// }, [selectedSalaryEmployee, employees, attendance]);
+}, [selectedSalaryEmployee, selectedSalaryMonth, employees, attendance]);
 
   
   /*

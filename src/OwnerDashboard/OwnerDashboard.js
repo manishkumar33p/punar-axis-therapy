@@ -1728,6 +1728,14 @@ import "./OwnerDashboard.css";
 const PATIENTS_COLLECTION = "patients";
 const APPOINTMENTS_COLLECTION = "appointments";
 const TREATMENTS_COLLECTION = "patientTreatments";
+const EMPLOYEE_STORAGE_KEY = "clinic_employees";
+const SHIFT_STORAGE_KEY = "clinic_employee_shift_settings";
+const DEFAULT_SHIFT = {
+  inTime: "10:00",
+  outTime: "18:00",
+  graceMinutes: 10,
+  requiredWorkMinutes: 480,
+};
 
 
 /* =========================================================
@@ -1821,9 +1829,210 @@ export default function OwnerDashboard() {
   const [patients, setPatients] = useState([]);
   const [appointments, setAppointments] = useState([]);
   const [treatments, setTreatments] = useState([]);
+  const [employees, setEmployees] = useState([]);
+  const [shiftSettings, setShiftSettings] = useState({});
+  const [shiftMessage, setShiftMessage] = useState("");
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+
+
+  /* =======================================================
+     EMPLOYEES + OWNER SHIFT SETTINGS
+  ======================================================= */
+
+  useEffect(() => {
+    const loadEmployeeData = () => {
+      try {
+        const savedEmployees = JSON.parse(
+          localStorage.getItem(EMPLOYEE_STORAGE_KEY) || "[]"
+        );
+        const savedShifts = JSON.parse(
+          localStorage.getItem(SHIFT_STORAGE_KEY) || "{}"
+        );
+
+        const employeeList = Array.isArray(savedEmployees)
+          ? savedEmployees
+          : [];
+
+        const normalizedShifts = {
+          ...(savedShifts && typeof savedShifts === "object"
+            ? savedShifts
+            : {}),
+        };
+
+        employeeList.forEach((employee) => {
+          if (!normalizedShifts[employee.id]) {
+            normalizedShifts[employee.id] = { ...DEFAULT_SHIFT };
+          } else {
+            normalizedShifts[employee.id] = {
+              ...DEFAULT_SHIFT,
+              ...normalizedShifts[employee.id],
+            };
+          }
+        });
+
+        setEmployees(employeeList);
+        setShiftSettings(normalizedShifts);
+      } catch (storageError) {
+        console.error("Owner employee data loading error:", storageError);
+        setEmployees([]);
+        setShiftSettings({});
+      }
+    };
+
+    loadEmployeeData();
+
+    const handleStorage = (event) => {
+      if (
+        event.key === EMPLOYEE_STORAGE_KEY ||
+        event.key === SHIFT_STORAGE_KEY
+      ) {
+        loadEmployeeData();
+      }
+    };
+
+    window.addEventListener("storage", handleStorage);
+
+    return () => {
+      window.removeEventListener("storage", handleStorage);
+    };
+  }, []);
+
+  const updateEmployeeShift = (employeeId, field, value) => {
+    setShiftSettings((prev) => ({
+      ...prev,
+      [employeeId]: {
+        ...DEFAULT_SHIFT,
+        ...(prev[employeeId] || {}),
+        [field]: value,
+      },
+    }));
+    setShiftMessage("");
+  };
+
+  const saveEmployeeShift = (employeeId) => {
+    const nextSettings = {
+      ...shiftSettings,
+      [employeeId]: {
+        ...DEFAULT_SHIFT,
+        ...(shiftSettings[employeeId] || {}),
+      },
+    };
+
+    localStorage.setItem(
+      SHIFT_STORAGE_KEY,
+      JSON.stringify(nextSettings)
+    );
+
+    // Recalculate today's existing attendance record immediately
+    // using the newly saved employee-specific shift.
+    try {
+      const attendanceKey = "clinic_employee_attendance";
+      const savedAttendance = JSON.parse(
+        localStorage.getItem(attendanceKey) || "[]"
+      );
+
+      const today = getToday();
+      const employeeShift = nextSettings[employeeId] || DEFAULT_SHIFT;
+
+      const toMinutes = (value) => {
+        if (!value) return null;
+
+        const match = String(value)
+          .trim()
+          .match(/^(\d{1,2}):(\d{2})(?::\d{2})?(?:\s*(AM|PM))?$/i);
+
+        if (!match) return null;
+
+        let hour = Number(match[1]);
+        const minute = Number(match[2]);
+        const period = match[3]?.toUpperCase();
+
+        if (period === "AM" && hour === 12) hour = 0;
+        if (period === "PM" && hour !== 12) hour += 12;
+
+        return hour * 60 + minute;
+      };
+
+      const parsePunchInMinutes = (record) => {
+        const raw = record?.inTime || record?.time;
+        if (!raw) return null;
+
+        const direct = toMinutes(raw);
+        if (direct !== null) return direct;
+
+        const date = new Date(raw);
+        if (!Number.isNaN(date.getTime())) {
+          return date.getHours() * 60 + date.getMinutes();
+        }
+
+        return null;
+      };
+
+      const shiftStart = toMinutes(employeeShift.inTime) ?? 600;
+      const grace = Math.max(0, Number(employeeShift.graceMinutes ?? 10));
+
+      const recalculatedAttendance = Array.isArray(savedAttendance)
+        ? savedAttendance.map((record) => {
+            if (
+              record.employeeId !== employeeId ||
+              String(record.date || "") !== today
+            ) {
+              return record;
+            }
+
+            const punchInMinutes = parsePunchInMinutes(record);
+            if (punchInMinutes === null) return record;
+
+            const lateMinutes = Math.max(
+              0,
+              punchInMinutes - shiftStart
+            );
+
+            const isLate = lateMinutes > grace;
+
+            return {
+              ...record,
+              type: isLate ? "Half Day" : "Present",
+              lateMinutes,
+              isLate,
+              shiftInTime: employeeShift.inTime,
+              shiftOutTime: employeeShift.outTime,
+              graceMinutes: grace,
+              updatedAt: new Date().toISOString(),
+            };
+          })
+        : [];
+
+      localStorage.setItem(
+        attendanceKey,
+        JSON.stringify(recalculatedAttendance)
+      );
+
+      // Notify the Attendance page running in another tab/window.
+      window.dispatchEvent(
+        new StorageEvent("storage", {
+          key: attendanceKey,
+          newValue: JSON.stringify(recalculatedAttendance),
+          storageArea: localStorage,
+        })
+      );
+    } catch (attendanceError) {
+      console.error(
+        "Today's attendance shift recalculation failed:",
+        attendanceError
+      );
+    }
+
+    setShiftSettings(nextSettings);
+    const employee = employees.find((item) => item.id === employeeId);
+    setShiftMessage(
+      `${employee?.name || employeeId} shift saved successfully. Today's attendance recalculated.`
+    );
+
+    window.setTimeout(() => setShiftMessage(""), 2500);
+  };
 
 
   /* =======================================================
@@ -2439,6 +2648,135 @@ export default function OwnerDashboard() {
             </div>
           </div>
 
+        </section>
+
+
+        {/* =================================================
+            EMPLOYEE SHIFT SETTINGS
+        ================================================= */}
+
+        <section
+          className="owner-panel"
+          style={{ marginBottom: "24px" }}
+        >
+          <div className="owner-panel-header">
+            <div>
+              <span>ATTENDANCE CONTROL</span>
+              <h3>Employee Shift Settings</h3>
+              <p style={{ margin: "6px 0 0", color: "#64748b" }}>
+                Owner can set individual In Time, Out Time and grace period.
+              </p>
+            </div>
+          </div>
+
+          {shiftMessage && (
+            <div
+              style={{
+                margin: "0 0 16px",
+                padding: "12px 14px",
+                borderRadius: "10px",
+                background: "#ecfdf5",
+                color: "#047857",
+                fontWeight: 600,
+              }}
+            >
+              ✓ {shiftMessage}
+            </div>
+          )}
+
+          {employees.length === 0 ? (
+            <div className="owner-empty small">
+              No employees found. Add employees from Employee Attendance first.
+            </div>
+          ) : (
+            <div style={{ overflowX: "auto" }}>
+              <table style={{ width: "100%", borderCollapse: "collapse", minWidth: "760px" }}>
+                <thead>
+                  <tr>
+                    <th style={{ textAlign: "left", padding: "12px 10px" }}>Employee</th>
+                    <th style={{ textAlign: "left", padding: "12px 10px" }}>In Time</th>
+                    <th style={{ textAlign: "left", padding: "12px 10px" }}>Out Time</th>
+                    <th style={{ textAlign: "left", padding: "12px 10px" }}>Grace</th>
+                    <th style={{ textAlign: "left", padding: "12px 10px" }}>Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {employees.map((employee) => {
+                    const settings = {
+                      ...DEFAULT_SHIFT,
+                      ...(shiftSettings[employee.id] || {}),
+                    };
+
+                    return (
+                      <tr key={employee.id}>
+                        <td style={{ padding: "12px 10px", borderTop: "1px solid #e5e7eb" }}>
+                          <strong>{employee.name || "Employee"}</strong>
+                          <div style={{ fontSize: "12px", color: "#64748b", marginTop: "3px" }}>
+                            {employee.id}
+                          </div>
+                        </td>
+                        <td style={{ padding: "12px 10px", borderTop: "1px solid #e5e7eb" }}>
+                          <input
+                            type="time"
+                            value={settings.inTime}
+                            onChange={(e) =>
+                              updateEmployeeShift(employee.id, "inTime", e.target.value)
+                            }
+                          />
+                        </td>
+                        <td style={{ padding: "12px 10px", borderTop: "1px solid #e5e7eb" }}>
+                          <input
+                            type="time"
+                            value={settings.outTime}
+                            onChange={(e) =>
+                              updateEmployeeShift(employee.id, "outTime", e.target.value)
+                            }
+                          />
+                        </td>
+                        <td style={{ padding: "12px 10px", borderTop: "1px solid #e5e7eb" }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                            <input
+                              type="number"
+                              min="0"
+                              max="120"
+                              value={settings.graceMinutes}
+                              onChange={(e) =>
+                                updateEmployeeShift(
+                                  employee.id,
+                                  "graceMinutes",
+                                  Math.max(0, Number(e.target.value || 0))
+                                )
+                              }
+                              style={{ width: "90px" }}
+                            />
+                            <span>min</span>
+                          </div>
+                        </td>
+                        <td style={{ padding: "12px 10px", borderTop: "1px solid #e5e7eb" }}>
+                          <button
+                            onClick={() => saveEmployeeShift(employee.id)}
+                            style={{
+                              border: 0,
+                              borderRadius: "8px",
+                              padding: "9px 14px",
+                              cursor: "pointer",
+                              fontWeight: 700,
+                            }}
+                          >
+                            Save Shift
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          <p style={{ margin: "14px 0 0", fontSize: "13px", color: "#64748b" }}>
+            Example: 10:00 AM In Time + 10 min grace means late status starts after 10:10 AM.
+          </p>
         </section>
 
 

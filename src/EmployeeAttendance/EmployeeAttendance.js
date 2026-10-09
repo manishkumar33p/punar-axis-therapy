@@ -2198,10 +2198,10 @@ import "./EmployeeAttendance.css";
 
 const EMPLOYEE_KEY = "clinic_employees";
 const ATTENDANCE_KEY = "clinic_employee_attendance";
-
-const SHIFT_START_HOUR = 10;
-const SHIFT_START_MINUTE = 0;
-const GRACE_MINUTES = 10;
+const SHIFT_SETTINGS_KEY = "clinic_employee_shift_settings";
+const DEFAULT_SHIFT_START = "10:00";
+const DEFAULT_SHIFT_END = "18:00";
+const DEFAULT_GRACE_MINUTES = 10;
 const REQUIRED_WORK_MINUTES = 8 * 60;
 
 const getToday = () => {
@@ -2253,18 +2253,41 @@ const getMinutesFromTime = (time) => {
   return hour * 60 + minute;
 };
 
-const getLateInfo = (date = new Date()) => {
-  const shiftStart =
-    SHIFT_START_HOUR * 60 + SHIFT_START_MINUTE;
+const getEmployeeShift = (employee) => {
+  let settings = {};
 
-  const current =
-    date.getHours() * 60 + date.getMinutes();
+  try {
+    settings = JSON.parse(
+      localStorage.getItem(SHIFT_SETTINGS_KEY) || "{}"
+    );
+  } catch {
+    settings = {};
+  }
 
-  const lateMinutes = Math.max(0, current - shiftStart);
+  const saved = employee?.id ? settings[employee.id] || {} : {};
+
+  return {
+    inTime: saved.inTime || employee?.shiftInTime || DEFAULT_SHIFT_START,
+    outTime: saved.outTime || employee?.shiftOutTime || DEFAULT_SHIFT_END,
+    graceMinutes: Number(
+      saved.graceMinutes ?? employee?.graceMinutes ?? DEFAULT_GRACE_MINUTES
+    ),
+  };
+};
+
+const getLateInfo = (date = new Date(), employee = null) => {
+  const shift = getEmployeeShift(employee);
+  const shiftStart = getMinutesFromTime(shift.inTime);
+  const current = date.getHours() * 60 + date.getMinutes();
+  const safeShiftStart = shiftStart === null ? 600 : shiftStart;
+  const graceMinutes = Math.max(0, Number(shift.graceMinutes || 0));
+  const lateMinutes = Math.max(0, current - safeShiftStart);
 
   return {
     lateMinutes,
-    isLate: lateMinutes > GRACE_MINUTES,
+    graceMinutes,
+    shift,
+    isLate: lateMinutes > graceMinutes,
   };
 };
 
@@ -2357,6 +2380,18 @@ function EmployeeAttendance() {
   const [selectedSalaryEmployee, setSelectedSalaryEmployee] =
     useState("");
 const [selectedEmployee, setSelectedEmployee] = useState("");
+
+const [selectedSalaryMonth, setSelectedSalaryMonth] = useState(() => {
+  const now = new Date();
+
+  return `${now.getFullYear()}-${String(
+    now.getMonth() + 1
+  ).padStart(2, "0")}`;
+});
+
+
+
+
   const [newEmployee, setNewEmployee] = useState({
     name: "",
     mobile: "",
@@ -2811,7 +2846,7 @@ const [selectedEmployee, setSelectedEmployee] = useState("");
   };
 
   const calculateStatusForPunchIn = (now) => {
-    const lateInfo = getLateInfo(now);
+    const lateInfo = getLateInfo(now, loggedEmployee);
 
     if (!lateInfo.isLate) {
       return {
@@ -2844,7 +2879,7 @@ const [selectedEmployee, setSelectedEmployee] = useState("");
         const itemLate =
           item.isLate ||
           Number(item.lateMinutes || 0) >
-            GRACE_MINUTES;
+            Number(lateInfo.graceMinutes || 0);
 
         return (
           itemDate.getFullYear() === year &&
@@ -2929,8 +2964,12 @@ const [selectedEmployee, setSelectedEmployee] = useState("");
 
       type: statusInfo.type,
 
+      shiftInTime: statusInfo.shift?.inTime || DEFAULT_SHIFT_START,
+      shiftOutTime: statusInfo.shift?.outTime || DEFAULT_SHIFT_END,
+      graceMinutes: Number(statusInfo.graceMinutes ?? DEFAULT_GRACE_MINUTES),
+
       lateMinutes: statusInfo.lateMinutes,
-      isLate: statusInfo.lateMinutes > GRACE_MINUTES,
+      isLate: statusInfo.lateMinutes > Number(statusInfo.graceMinutes || 0),
 
       inFaceImage: faceImage,
       faceImage: faceImage,
@@ -3087,9 +3126,16 @@ const [selectedEmployee, setSelectedEmployee] = useState("");
         outTime
       );
 
+    const employeeShift = getEmployeeShift(loggedEmployee);
+    const requiredWorkMinutes =
+      getWorkingMinutes(
+        employeeShift.inTime,
+        employeeShift.outTime
+      ) || REQUIRED_WORK_MINUTES;
+
     const shortHours =
       workingMinutes <
-      REQUIRED_WORK_MINUTES;
+      requiredWorkMinutes;
 
     const updatedRecord = {
       ...existingRecord,
@@ -3120,8 +3166,7 @@ const [selectedEmployee, setSelectedEmployee] = useState("");
       workingHours:
         formatDuration(workingMinutes),
 
-      requiredWorkMinutes:
-        REQUIRED_WORK_MINUTES,
+      requiredWorkMinutes,
 
       shortHours,
 
@@ -3437,10 +3482,12 @@ const [selectedEmployee, setSelectedEmployee] = useState("");
   //   employees,
   //   attendance,
   // ]);
-console.log("SELECTED EMPLOYEE:", selectedEmployee);
-console.log("ATTENDANCE:", attendance);
 const salaryData = useMemo(() => {
-  if (!selectedEmployee) {
+  const employee = employees.find(
+    (item) => String(item.id) === String(selectedSalaryEmployee)
+  );
+
+  if (!employee) {
     return {
       employee: {
         name: "No Employee Selected",
@@ -3478,23 +3525,28 @@ const salaryData = useMemo(() => {
   // BASIC EMPLOYEE INFORMATION
   // ---------------------------------------------------------
 
+  const rawSalary =
+    employee.salary ??
+    employee.monthlySalary ??
+    employee.monthlySalaryAmount ??
+    employee.salaryAmount ??
+    employee.ctcMonthly ??
+    employee.ctc ??
+    0;
+
   const monthlySalary = Number(
-    selectedEmployee.salary ??
-    selectedEmployee.monthlySalary ??
-    selectedEmployee.ctcMonthly ??
-    selectedEmployee.ctc ??
-    0
-  );
+    String(rawSalary).replace(/[^0-9.-]/g, "")
+  ) || 0;
 
   const employeeName =
-    selectedEmployee.name ||
-    selectedEmployee.employeeName ||
+    employee.name ||
+    employee.employeeName ||
     "Employee";
 
   const employeeId =
-    selectedEmployee.employeeId ||
-    selectedEmployee.id ||
-    selectedEmployee.empId ||
+    employee.employeeId ||
+    employee.id ||
+    employee.empId ||
     "";
 
   // ---------------------------------------------------------
@@ -3503,8 +3555,13 @@ const salaryData = useMemo(() => {
 
   const today = new Date();
 
-  const year = today.getFullYear();
-  const month = today.getMonth();
+  // const year = today.getFullYear();
+  // const month = today.getMonth();
+  const [selectedYear, selectedMonthNumber] =
+  selectedSalaryMonth.split("-").map(Number);
+
+const year = selectedYear;
+const month = selectedMonthNumber - 1;
 
   const monthStart = new Date(year, month, 1);
   const monthEnd = new Date(year, month + 1, 0);
@@ -3567,10 +3624,10 @@ const salaryData = useMemo(() => {
   let weeklyOffDays = [];
 
   const employeeWeeklyOff =
-    selectedEmployee.weeklyOffDays ??
-    selectedEmployee.weeklyOffDay ??
-    selectedEmployee.weeklyOff ??
-    selectedEmployee.week_off;
+    employee.weeklyOffDays ??
+    employee.weeklyOffDay ??
+    employee.weeklyOff ??
+    employee.week_off;
 
   if (Array.isArray(employeeWeeklyOff)) {
     weeklyOffDays = employeeWeeklyOff
@@ -3628,15 +3685,15 @@ const salaryData = useMemo(() => {
   // ---------------------------------------------------------
 
   const joiningDate = normalizeDate(
-    selectedEmployee.joiningDate ||
-    selectedEmployee.dateOfJoining ||
-    selectedEmployee.joinDate
+    employee.joiningDate ||
+    employee.dateOfJoining ||
+    employee.joinDate
   );
 
   const exitDate = normalizeDate(
-    selectedEmployee.leavingDate ||
-    selectedEmployee.exitDate ||
-    selectedEmployee.lastWorkingDate
+    employee.leavingDate ||
+    employee.exitDate ||
+    employee.lastWorkingDate
   );
 
   // ---------------------------------------------------------
@@ -3782,7 +3839,7 @@ const salaryData = useMemo(() => {
     if (d > today) return;
 
     // Weekly off / holiday should not become absence.
-    if (!isWorkingDay(d)) return;
+    // if (!isWorkingDay(d)) return;
 
     const key = dateKey(d);
 
@@ -4005,7 +4062,7 @@ const salaryData = useMemo(() => {
     finalSalary: payableSalary,
     netSalary: payableSalary,
   };
-}, [selectedEmployee, attendance]);
+}, [selectedSalaryEmployee, employees, attendance]);
 
   
   /*
@@ -5781,11 +5838,6 @@ const salaryData = useMemo(() => {
 
     setSelectedSalaryEmployee(employeeId);
 
-    const employee = employees.find(
-      (item) => item.id === employeeId
-    );
-
-    setSelectedEmployee(employee || null);
   }}
 >
   <option value="">
@@ -5801,6 +5853,17 @@ const salaryData = useMemo(() => {
     </option>
   ))}
 </select>
+<div className="salary-month-selector">
+  <label>Select Month</label>
+
+  <input
+    type="month"
+    value={selectedSalaryMonth}
+    onChange={(e) =>
+      setSelectedSalaryMonth(e.target.value)
+    }
+  />
+</div>
             </div>
 
             {salaryData && (

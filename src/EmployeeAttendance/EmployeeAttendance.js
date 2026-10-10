@@ -2687,28 +2687,89 @@ useEffect(() => {
     }));
   };
 
-  const createEmployee = (e) => {
-    e.preventDefault();
+  // const createEmployee = (e) => {
+  //   e.preventDefault();
 
-    if (!newEmployee.name.trim()) {
-      alert("Employee name is required.");
-      return;
-    }
+  //   if (!newEmployee.name.trim()) {
+  //     alert("Employee name is required.");
+  //     return;
+  //   }
 
-    if (!newEmployee.password.trim()) {
-      alert("Employee password is required.");
-      return;
-    }
+  //   if (!newEmployee.password.trim()) {
+  //     alert("Employee password is required.");
+  //     return;
+  //   }
 
-    const employee = {
-      ...newEmployee,
-      id: generateEmployeeId(employees),
-      name: newEmployee.name.trim(),
-      salary: Number(newEmployee.salary || 0),
-      createdAt: new Date().toISOString(),
-      faceImage: "",
-    };
+  //   const employee = {
+  //     ...newEmployee,
+  //     id: generateEmployeeId(employees),
+  //     name: newEmployee.name.trim(),
+  //     salary: Number(newEmployee.salary || 0),
+  //     createdAt: new Date().toISOString(),
+  //     faceImage: "",
+  //   };
 
+  //   const updatedEmployees = [
+  //     ...employees,
+  //     employee,
+  //   ];
+
+  //   setEmployees(updatedEmployees);
+
+  //   localStorage.setItem(
+  //     EMPLOYEE_KEY,
+  //     JSON.stringify(updatedEmployees)
+  //   );
+
+  //   setNewEmployee({
+  //     name: "",
+  //     mobile: "",
+  //     department: "",
+  //     designation: "",
+  //     salary: "",
+  //     joiningDate: getToday(),
+  //     password: "",
+  //   });
+
+  //   setShowEmployeeModal(false);
+
+  //   alert(
+  //     `Employee created successfully.\nEmployee ID: ${employee.id}`
+  //   );
+  // };
+
+  
+const createEmployee = async (e) => {
+  e.preventDefault();
+
+  if (!newEmployee.name.trim()) {
+    alert("Employee name is required.");
+    return;
+  }
+
+  if (!newEmployee.password.trim()) {
+    alert("Employee password is required.");
+    return;
+  }
+
+  const employee = {
+    ...newEmployee,
+    id: generateEmployeeId(employees),
+    name: newEmployee.name.trim(),
+    salary: Number(newEmployee.salary || 0),
+    createdAt: new Date().toISOString(),
+    faceImage: "",
+  };
+
+  try {
+    // First save the employee in Firebase Firestore.
+    await setDoc(
+      doc(db, "employees", String(employee.id)),
+      employee,
+      { merge: true }
+    );
+
+    // Keep the existing local data and UI behavior.
     const updatedEmployees = [
       ...employees,
       employee,
@@ -2734,9 +2795,20 @@ useEffect(() => {
     setShowEmployeeModal(false);
 
     alert(
-      `Employee created successfully.\nEmployee ID: ${employee.id}`
+      `Employee created successfully in Firebase!\nEmployee ID: ${employee.id}`
     );
-  };
+  } catch (error) {
+    console.error(
+      "Firebase employee save failed:",
+      error
+    );
+
+    alert(
+      `Employee Firebase mein save nahi hua.\n${error.code || error.message || "Unknown error"}`
+    );
+  }
+};
+
 
   const deleteEmployee = (employeeId) => {
     const employee = employees.find(

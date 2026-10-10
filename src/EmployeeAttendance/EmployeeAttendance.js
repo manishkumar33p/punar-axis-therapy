@@ -2195,7 +2195,10 @@
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import "./EmployeeAttendance.css";
+import { collection, onSnapshot } from "firebase/firestore";
+import { db } from "../firebase";
 
+import { doc, setDoc } from "firebase/firestore";
 const EMPLOYEE_KEY = "clinic_employees";
 const ATTENDANCE_KEY = "clinic_employee_attendance";
 const SHIFT_SETTINGS_KEY = "clinic_employee_shift_settings";
@@ -2405,29 +2408,101 @@ const [selectedSalaryMonth, setSelectedSalaryMonth] = useState(() => {
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
 
-  useEffect(() => {
-    const savedEmployees =
-      localStorage.getItem(EMPLOYEE_KEY);
+  // useEffect(() => {
+  //   const savedEmployees =
+  //     localStorage.getItem(EMPLOYEE_KEY);
 
-    const savedAttendance =
-      localStorage.getItem(ATTENDANCE_KEY);
+  //   const savedAttendance =
+  //     localStorage.getItem(ATTENDANCE_KEY);
+
+  //   if (savedEmployees) {
+  //     try {
+  //       setEmployees(JSON.parse(savedEmployees));
+  //     } catch {
+  //       setEmployees([]);
+  //     }
+  //   }
+
+  //   if (savedAttendance) {
+  //     try {
+  //       setAttendance(JSON.parse(savedAttendance));
+  //     } catch {
+  //       setAttendance([]);
+  //     }
+  //   }
+  // }, []);
+
+  
+useEffect(() => {
+  // Existing local data stays available.
+  try {
+    const savedEmployees = localStorage.getItem(EMPLOYEE_KEY);
+    const savedAttendance = localStorage.getItem(ATTENDANCE_KEY);
 
     if (savedEmployees) {
-      try {
-        setEmployees(JSON.parse(savedEmployees));
-      } catch {
-        setEmployees([]);
+      const parsedEmployees = JSON.parse(savedEmployees);
+      if (Array.isArray(parsedEmployees)) {
+        setEmployees(parsedEmployees);
       }
     }
 
     if (savedAttendance) {
-      try {
-        setAttendance(JSON.parse(savedAttendance));
-      } catch {
-        setAttendance([]);
+      const parsedAttendance = JSON.parse(savedAttendance);
+      if (Array.isArray(parsedAttendance)) {
+        setAttendance(parsedAttendance);
       }
     }
-  }, []);
+  } catch (error) {
+    console.error("Local attendance loading failed:", error);
+  }
+
+  // Read Firestore attendance without deleting or writing any records.
+  const unsubscribe = onSnapshot(
+    collection(db, "employeeAttendance"),
+    (snapshot) => {
+      const firestoreRecords = snapshot.docs.map((document) => {
+        const data = document.data();
+
+        return {
+          ...data,
+          id: String(data.id || document.id),
+          employeeId: String(data.employeeId || ""),
+          employeeName: String(data.employeeName || ""),
+          date: String(data.date || ""),
+          type: data.type || "Present",
+          inTime: data.inTime || data.time || "",
+          outTime: data.outTime || "",
+        };
+      });
+
+      setAttendance((currentAttendance) => {
+        const recordsById = new Map();
+
+        currentAttendance.forEach((record) => {
+          recordsById.set(String(record.id), record);
+        });
+
+        firestoreRecords.forEach((record) => {
+          recordsById.set(String(record.id), {
+            ...recordsById.get(String(record.id)),
+            ...record,
+          });
+        });
+
+        return Array.from(recordsById.values());
+      });
+    },
+    (error) => {
+      console.error("Firestore attendance read failed:", error);
+      alert(
+        "Attendance Firestore se load nahi hui. Browser console mein error check karein."
+      );
+    }
+  );
+
+  return () => unsubscribe();
+}, []);
+
 
   useEffect(() => {
     return () => {
@@ -2903,7 +2978,34 @@ const [selectedSalaryMonth, setSelectedSalaryMonth] = useState(() => {
       lateMinutes: lateInfo.lateMinutes,
     };
   };
+// new testing code 
+const saveAttendanceToFirestore = async (record) => {
+  try {
+    const attendanceId = String(record.id);
 
+    await setDoc(
+      doc(db, "employeeAttendance", attendanceId),
+      {
+        ...record,
+        id: attendanceId,
+        employeeId: String(record.employeeId || ""),
+        employeeName: String(record.employeeName || ""),
+      },
+      { merge: true }
+    );
+
+    console.log("Attendance saved to Firestore:", attendanceId);
+    return true;
+  } catch (error) {
+    console.error("Attendance Firestore save failed:", error);
+
+    setAttendanceError(
+      `Firebase mein attendance save nahi hui: ${error.code || error.message || "Unknown error"}. Local attendance filhaal saved hai.`
+    );
+
+    return false;
+  }
+};
   const markPunchIn = () => {
     setAttendanceError("");
     setAttendanceMessage("");
@@ -3014,6 +3116,7 @@ const [selectedSalaryMonth, setSelectedSalaryMonth] = useState(() => {
       ATTENDANCE_KEY,
       JSON.stringify(updatedAttendance)
     );
+    void saveAttendanceToFirestore(attendanceRecord);
 
     const updatedEmployees =
       employees.map((employee) =>
@@ -3186,6 +3289,7 @@ const [selectedSalaryMonth, setSelectedSalaryMonth] = useState(() => {
       ATTENDANCE_KEY,
       JSON.stringify(updatedAttendance)
     );
+    void saveAttendanceToFirestore(updatedRecord);
 
     setFaceImage("");
     setCapturedLocation(null);

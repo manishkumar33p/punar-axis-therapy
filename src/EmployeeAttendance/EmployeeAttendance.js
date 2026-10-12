@@ -3184,11 +3184,29 @@ const saveAttendanceToFirestore = async (record) => {
 
     setAttendance(updatedAttendance);
 
-    localStorage.setItem(
-      ATTENDANCE_KEY,
-      JSON.stringify(updatedAttendance)
-    );
-    void saveAttendanceToFirestore(attendanceRecord);
+    // localStorage.setItem(
+    //   ATTENDANCE_KEY,
+    //   JSON.stringify(updatedAttendance)
+    // );
+    // void saveAttendanceToFirestore(attendanceRecord);
+    
+try {
+  const attendanceWithoutPhotos = updatedAttendance.map((item) => ({
+    ...item,
+    faceImage: "",
+    inFaceImage: "",
+    outFaceImage: "",
+  }));
+
+  localStorage.setItem(
+    ATTENDANCE_KEY,
+    JSON.stringify(attendanceWithoutPhotos)
+  );
+} catch (error) {
+  console.error("Local attendance save failed:", error);
+}
+
+void saveAttendanceToFirestore(attendanceRecord);
 
     const updatedEmployees =
       employees.map((employee) =>
@@ -3357,11 +3375,29 @@ const saveAttendanceToFirestore = async (record) => {
 
     setAttendance(updatedAttendance);
 
-    localStorage.setItem(
-      ATTENDANCE_KEY,
-      JSON.stringify(updatedAttendance)
-    );
-    void saveAttendanceToFirestore(updatedRecord);
+    // localStorage.setItem(
+    //   ATTENDANCE_KEY,
+    //   JSON.stringify(updatedAttendance)
+    // );
+    // void saveAttendanceToFirestore(updatedRecord);
+    
+try {
+  const attendanceWithoutPhotos = updatedAttendance.map((item) => ({
+    ...item,
+    faceImage: "",
+    inFaceImage: "",
+    outFaceImage: "",
+  }));
+
+  localStorage.setItem(
+    ATTENDANCE_KEY,
+    JSON.stringify(attendanceWithoutPhotos)
+  );
+} catch (error) {
+  console.error("Local attendance save failed:", error);
+}
+
+void saveAttendanceToFirestore(updatedRecord);
 
     setFaceImage("");
     setCapturedLocation(null);

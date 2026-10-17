@@ -2520,6 +2520,59 @@ useEffect(() => {
     }
   }, [cameraStream]);
 
+
+  
+useEffect(() => {
+  const unsubscribe = onSnapshot(
+    collection(db, "employees"),
+    (snapshot) => {
+      const cloudEmployees = snapshot.docs.map((item) => ({
+        ...item.data(),
+        id: String(item.data().id || item.id),
+      }));
+
+      let localEmployees = [];
+
+      try {
+        localEmployees = JSON.parse(
+          localStorage.getItem(EMPLOYEE_KEY) || "[]"
+        );
+
+        if (!Array.isArray(localEmployees)) {
+          localEmployees = [];
+        }
+      } catch {
+        localEmployees = [];
+      }
+
+      // Merge local and cloud employees by ID.
+      const employeeMap = new Map();
+
+      [...localEmployees, ...cloudEmployees].forEach((employee) => {
+        employeeMap.set(String(employee.id), employee);
+      });
+
+      const mergedEmployees = Array.from(employeeMap.values());
+
+      setEmployees(mergedEmployees);
+
+      try {
+        localStorage.setItem(
+          EMPLOYEE_KEY,
+          JSON.stringify(mergedEmployees)
+        );
+      } catch (error) {
+        console.error("Employee cache save failed:", error);
+      }
+    },
+    (error) => {
+      console.error("Firebase employee loading failed:", error);
+    }
+  );
+
+  return () => unsubscribe();
+}, []);
+
   const today = getToday();
 
   // const todayAttendance = useMemo(() => {
@@ -2739,6 +2792,76 @@ useEffect(() => {
   // };
 
   
+// const createEmployee = async (e) => {
+//   e.preventDefault();
+
+//   if (!newEmployee.name.trim()) {
+//     alert("Employee name is required.");
+//     return;
+//   }
+
+//   if (!newEmployee.password.trim()) {
+//     alert("Employee password is required.");
+//     return;
+//   }
+
+//   const employee = {
+//     ...newEmployee,
+//     id: generateEmployeeId(employees),
+//     name: newEmployee.name.trim(),
+//     salary: Number(newEmployee.salary || 0),
+//     createdAt: new Date().toISOString(),
+//     faceImage: "",
+//   };
+
+//   try {
+//     // First save the employee in Firebase Firestore.
+//     await setDoc(
+//       doc(db, "employees", String(employee.id)),
+//       employee,
+//       { merge: true }
+//     );
+
+//     // Keep the existing local data and UI behavior.
+//     const updatedEmployees = [
+//       ...employees,
+//       employee,
+//     ];
+
+//     setEmployees(updatedEmployees);
+
+//     localStorage.setItem(
+//       EMPLOYEE_KEY,
+//       JSON.stringify(updatedEmployees)
+//     );
+
+//     setNewEmployee({
+//       name: "",
+//       mobile: "",
+//       department: "",
+//       designation: "",
+//       salary: "",
+//       joiningDate: getToday(),
+//       password: "",
+//     });
+
+//     setShowEmployeeModal(false);
+
+//     alert(
+//       `Employee created successfully in Firebase!\nEmployee ID: ${employee.id}`
+//     );
+//   } catch (error) {
+//     console.error(
+//       "Firebase employee save failed:",
+//       error
+//     );
+
+//     alert(
+//       `Employee Firebase mein save nahi hua.\n${error.code || error.message || "Unknown error"}`
+//     );
+//   }
+// };
+
 const createEmployee = async (e) => {
   e.preventDefault();
 
@@ -2761,53 +2884,56 @@ const createEmployee = async (e) => {
     faceImage: "",
   };
 
+  // First save locally, so Firebase failure does not block adding.
+  const updatedEmployees = [
+    ...employees,
+    employee,
+  ];
+
   try {
-    // First save the employee in Firebase Firestore.
+    localStorage.setItem(
+      EMPLOYEE_KEY,
+      JSON.stringify(updatedEmployees)
+    );
+  } catch (error) {
+    console.error("Local employee save failed:", error);
+    alert("Employee save nahi hua. Browser storage check karein.");
+    return;
+  }
+
+  setEmployees(updatedEmployees);
+
+  setNewEmployee({
+    name: "",
+    mobile: "",
+    department: "",
+    designation: "",
+    salary: "",
+    joiningDate: getToday(),
+    password: "",
+  });
+
+  setShowEmployeeModal(false);
+
+  try {
     await setDoc(
       doc(db, "employees", String(employee.id)),
       employee,
       { merge: true }
     );
 
-    // Keep the existing local data and UI behavior.
-    const updatedEmployees = [
-      ...employees,
-      employee,
-    ];
-
-    setEmployees(updatedEmployees);
-
-    localStorage.setItem(
-      EMPLOYEE_KEY,
-      JSON.stringify(updatedEmployees)
-    );
-
-    setNewEmployee({
-      name: "",
-      mobile: "",
-      department: "",
-      designation: "",
-      salary: "",
-      joiningDate: getToday(),
-      password: "",
-    });
-
-    setShowEmployeeModal(false);
-
     alert(
-      `Employee created successfully in Firebase!\nEmployee ID: ${employee.id}`
+      `Employee added successfully!\nEmployee ID: ${employee.id}`
     );
   } catch (error) {
-    console.error(
-      "Firebase employee save failed:",
-      error
-    );
+    console.error("Firebase employee save failed:", error);
 
     alert(
-      `Employee Firebase mein save nahi hua.\n${error.code || error.message || "Unknown error"}`
+      `Employee is added on this device, but cloud sync failed.\n${error.code || error.message}`
     );
   }
 };
+
 
 
   const deleteEmployee = (employeeId) => {

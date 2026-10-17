@@ -355,9 +355,24 @@ function Inventory() {
 
     setItems((prev) => prev.filter((item) => item.id !== itemId));
 
-    setHistory((prev) =>
-      prev.filter((entry) => entry.itemId !== itemId)
-    );
+    // setHistory((prev) =>
+    //   prev.filter((entry) => entry.itemId !== itemId)
+    // );
+    setHistory((prev) => [
+  {
+    id: Date.now(),
+    itemId: item.id,
+    itemName: item.name,
+    type: "DELETE",
+    quantity: Number(item.stock || 0),
+    date: new Date().toISOString().split("T")[0],
+    time: new Date().toLocaleTimeString(),
+    person: "Admin",
+    reason: "Inventory item deleted",
+    notes: "Item delete किया गया; पुरानी history सुरक्षित रखी गई।",
+  },
+  ...prev,
+]);
   };
 
   const formatDate = (date) => {
@@ -679,7 +694,7 @@ function Inventory() {
                         <strong>{entry.itemName}</strong>
                       </td>
 
-                      <td>
+                      {/* <td>
                         {entry.type === "IN" ? (
                           <span className="movement-badge in">
                             + Stock In
@@ -689,7 +704,25 @@ function Inventory() {
                             − Stock Out
                           </span>
                         )}
-                      </td>
+                      </td> */}
+
+
+<td>
+  {entry.type === "IN" ? (
+    <span className="movement-badge in">
+      + Stock In
+    </span>
+  ) : entry.type === "DELETE" ? (
+    <span className="movement-badge out">
+      Item Deleted
+    </span>
+  ) : (
+    <span className="movement-badge out">
+      − Stock Out
+    </span>
+  )}
+</td>
+
 
                       <td>
                         <strong>{entry.quantity}</strong>
@@ -791,6 +824,7 @@ function Inventory() {
                     <option>Box</option>
                     <option>Packet</option>
                     <option>Bottle</option>
+                     <option>Tablets</option>
                     <option>Tube</option>
                     <option>Kg</option>
                     <option>Liter</option>
